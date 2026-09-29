@@ -1231,6 +1231,7 @@ async function loadEventInfo(){
   document.getElementById('setEventDate').value = eventInfo.date||'';
   document.getElementById('setEventLoc').value = eventInfo.location||'';
   document.getElementById('setWalkInEnabled').checked = eventInfo.walkInEnabled !== false;
+  document.getElementById('setPreRegEnabled').checked = eventInfo.preRegEnabled !== false;
   refreshEventDisplay();
   applyWalkInVisibility(); applyPreRegVisibility();
 }
@@ -1248,7 +1249,8 @@ async function saveEventSettings(){
     name: document.getElementById('setEventName').value.trim() || 'Blood Donation Drive',
     date: document.getElementById('setEventDate').value,
     location: document.getElementById('setEventLoc').value.trim(),
-    walkInEnabled: document.getElementById('setWalkInEnabled').checked
+    walkInEnabled: document.getElementById('setWalkInEnabled').checked,
+    preRegEnabled: document.getElementById('setPreRegEnabled').checked
   };
   try{
     await apiCall('setEventInfo', {eventInfo: eventInfo});
