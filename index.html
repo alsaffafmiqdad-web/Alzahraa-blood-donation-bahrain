@@ -170,6 +170,11 @@
 
     <div id="registerFormWrap"></div>
 
+    <div id="registrationClosedNotice" class="card" style="display:none;text-align:center;padding:32px 20px;">
+      <p class="stat">Registration is currently closed / التسجيل مغلق حالياً</p>
+      <p class="hint" style="margin-top:8px;">Please check back later, or see event staff for assistance. / يرجى المحاولة لاحقاً أو التوجه إلى فريق الفعالية للمساعدة.</p>
+    </div>
+
     <div id="registerSuccess" class="card success-box" style="display:none;">
       <p class="stat">Registration complete / تم التسجيل بنجاح</p>
       <p class="id" id="successId"></p>
@@ -208,7 +213,7 @@
           <input type="checkbox" id="setPreRegEnabled" checked>
           <span>Allow pre-registration on the public form (organiser can still pre-register someone manually either way -- useful for assisted registrations)</span>
         </label>
-        <p class="hint">If both are switched off, the public form has no registration option left -- only ever switch off one at a time.</p>
+        <p class="hint">If both are switched off, the public form shows a "registration closed" message instead of the form -- useful for fully closing public registration for a period.</p>
         <button class="btn" id="saveEventBtn">Save event details</button>
         <div class="field" style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">
           <label>Change organiser PIN</label>
@@ -846,6 +851,20 @@ function applyPreRegVisibility(){
   } else {
     btn.style.display = '';
   }
+  applyRegistrationAvailability();
+}
+
+// If BOTH toggles end up off, hiding just the two buttons isn't enough -- the rest of the
+// form (name, CPR, everything) would stay fully visible and submittable underneath, with
+// no way for the donor to even see what registration type they'd be choosing. When that
+// happens, replace the whole form with a clear "registration closed" message instead.
+function applyRegistrationAvailability(){
+  const formWrap = document.getElementById('registerFormWrap');
+  const closedNotice = document.getElementById('registrationClosedNotice');
+  if(!formWrap || !closedNotice) return;
+  const bothClosed = eventInfo.walkInEnabled===false && eventInfo.preRegEnabled===false;
+  formWrap.style.display = bothClosed ? 'none' : '';
+  closedNotice.style.display = bothClosed ? 'block' : 'none';
 }
 
 function setRegType(p,type){
