@@ -732,20 +732,12 @@ function formHTML(p){
 
     (isStaffForm ? '' :
     '<div class="field">' +
-      '<label>Notes (optional) / ملاحظات (اختياري)</label>' +
-      '<textarea id="'+p+'_notes" rows="2" placeholder="Any relevant health notes or previous donation info"></textarea>' +
-    '</div>'),
-
-    (isStaffForm ? '' :
-    '<div class="field">' +
       '<label>Quick health screening / فحص صحي سريع</label>' +
       '<div class="card" style="padding:14px 16px;background:var(--paper);">' +
         '<div class="elig-row"><span>Feeling well today? / هل تشعر بصحة جيدة اليوم؟</span>' +
           '<select id="'+p+'_q_feelwell"><option value="yes">Yes / نعم</option><option value="no">No / لا</option></select></div>' +
         '<div class="elig-row"><span>Donated blood in last 3 months? / تبرعت بالدم خلال 3 أشهر؟</span>' +
           '<select id="'+p+'_q_recentdon"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
-        '<div class="elig-row"><span>Tattoo/piercing/surgery in last 6 months? / وشم أو ثقب أو جراحة خلال 6 أشهر؟</span>' +
-          '<select id="'+p+'_q_procedure"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
         '<div class="elig-row"><span>Travelled outside Bahrain in last 4 weeks? / سافرت خارج البحرين خلال 4 أسابيع؟</span>' +
           '<select id="'+p+'_q_travel"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
         '<div class="elig-row" style="border-bottom:none;"><span>Taking antibiotics or medication? / تتناول مضادات حيوية أو أدوية؟</span>' +
