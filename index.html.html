@@ -170,6 +170,11 @@
 
     <div id="registerFormWrap"></div>
 
+    <div id="registrationClosedNotice" class="card" style="display:none;text-align:center;padding:32px 20px;">
+      <p class="stat">Registration is currently closed / التسجيل مغلق حالياً</p>
+      <p class="hint" style="margin-top:8px;">Please check back later, or see event staff for assistance. / يرجى المحاولة لاحقاً أو التوجه إلى فريق الفعالية للمساعدة.</p>
+    </div>
+
     <div id="registerSuccess" class="card success-box" style="display:none;">
       <p class="stat">Registration complete / تم التسجيل بنجاح</p>
       <p class="id" id="successId"></p>
@@ -190,6 +195,7 @@
       <input type="text" id="pinInput" maxlength="12" placeholder="PIN">
       <p class="hint" id="pinGateHint" style="margin-bottom:14px;"></p>
       <button class="btn" id="pinEnterBtn">Enter</button>
+      <button class="btn ghost" id="forgotPinBtn" style="margin-top:10px;">Forgot PIN?</button>
     </div>
 
     <div id="dashContent" style="display:none;">
@@ -208,7 +214,7 @@
           <input type="checkbox" id="setPreRegEnabled" checked>
           <span>Allow pre-registration on the public form (organiser can still pre-register someone manually either way -- useful for assisted registrations)</span>
         </label>
-        <p class="hint">If both are switched off, the public form has no registration option left -- only ever switch off one at a time.</p>
+        <p class="hint">If both are switched off, the public form shows a "registration closed" message instead of the form -- useful for fully closing public registration for a period.</p>
         <button class="btn" id="saveEventBtn">Save event details</button>
         <div class="field" style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">
           <label>Change organiser PIN</label>
@@ -361,6 +367,24 @@
   </div>
 </div>
 
+<div class="modal-bg" id="pinResetBg">
+  <div class="modal" style="max-width:380px;">
+    <button class="modal-close" id="pinResetCloseBtn">x</button>
+    <h2>Reset organiser PIN</h2>
+    <div id="pinResetStep1">
+      <p class="hint">Sends a one-time code to the event's registered email. Valid for 10 minutes.</p>
+      <button class="btn" id="pinResetRequestBtn">Send reset code</button>
+    </div>
+    <div id="pinResetStep2" style="display:none;">
+      <p class="hint">Enter the code from the email, and your new PIN.</p>
+      <input type="text" id="pinResetCode" maxlength="6" inputmode="numeric" placeholder="6-digit code" style="margin-bottom:10px;">
+      <input type="text" id="pinResetNewPin" maxlength="12" placeholder="New PIN (6+ characters)">
+      <button class="btn" id="pinResetConfirmBtn" style="margin-top:10px;">Set new PIN</button>
+    </div>
+    <p class="err" id="pinResetErr" style="display:none;"></p>
+  </div>
+</div>
+
 <div class="modal-bg" id="orgNameBg">
   <div class="modal" style="max-width:380px;">
     <h2>Your name</h2>
@@ -400,6 +424,19 @@
 // ---------- Airtable backend config (via Apps Script proxy) ----------
 // Paste your deployed Apps Script Web App URL here (ends in /exec).
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0OIn1AtLcnsKuh9_mqXuhYnm581BsiueQEOKafEDtTgMgk-jXb_z02P1Nw2zCHZoKSQ/exec';
+
+// This only hides the Organiser tab from casual view -- it is NOT real access control.
+// The PIN is still the actual security boundary; anyone technical could still call the
+// backend directly. Change STAFF_LINK_SECRET to your own word if you want; the staff
+// link is then: <your-site-url>/?staff=<that-word>
+const STAFF_LINK_SECRET = 'tubli2026desk';
+const isStaffLink = new URLSearchParams(window.location.search).get('staff') === STAFF_LINK_SECRET;
+if(!isStaffLink){
+  document.addEventListener('DOMContentLoaded', function(){
+    const navDash = document.getElementById('navDash');
+    if(navDash) navDash.style.display = 'none';
+  });
+}
 
 async function apiCall(action, payload){
   if(!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') !== -1){
@@ -695,20 +732,12 @@ function formHTML(p){
 
     (isStaffForm ? '' :
     '<div class="field">' +
-      '<label>Notes (optional) / ملاحظات (اختياري)</label>' +
-      '<textarea id="'+p+'_notes" rows="2" placeholder="Any relevant health notes or previous donation info"></textarea>' +
-    '</div>'),
-
-    (isStaffForm ? '' :
-    '<div class="field">' +
       '<label>Quick health screening / فحص صحي سريع</label>' +
       '<div class="card" style="padding:14px 16px;background:var(--paper);">' +
         '<div class="elig-row"><span>Feeling well today? / هل تشعر بصحة جيدة اليوم؟</span>' +
           '<select id="'+p+'_q_feelwell"><option value="yes">Yes / نعم</option><option value="no">No / لا</option></select></div>' +
         '<div class="elig-row"><span>Donated blood in last 3 months? / تبرعت بالدم خلال 3 أشهر؟</span>' +
           '<select id="'+p+'_q_recentdon"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
-        '<div class="elig-row"><span>Tattoo/piercing/surgery in last 6 months? / وشم أو ثقب أو جراحة خلال 6 أشهر؟</span>' +
-          '<select id="'+p+'_q_procedure"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
         '<div class="elig-row"><span>Travelled outside Bahrain in last 4 weeks? / سافرت خارج البحرين خلال 4 أسابيع؟</span>' +
           '<select id="'+p+'_q_travel"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
         '<div class="elig-row" style="border-bottom:none;"><span>Taking antibiotics or medication? / تتناول مضادات حيوية أو أدوية؟</span>' +
@@ -846,6 +875,20 @@ function applyPreRegVisibility(){
   } else {
     btn.style.display = '';
   }
+  applyRegistrationAvailability();
+}
+
+// If BOTH toggles end up off, hiding just the two buttons isn't enough -- the rest of the
+// form (name, CPR, everything) would stay fully visible and submittable underneath, with
+// no way for the donor to even see what registration type they'd be choosing. When that
+// happens, replace the whole form with a clear "registration closed" message instead.
+function applyRegistrationAvailability(){
+  const formWrap = document.getElementById('registerFormWrap');
+  const closedNotice = document.getElementById('registrationClosedNotice');
+  if(!formWrap || !closedNotice) return;
+  const bothClosed = eventInfo.walkInEnabled===false && eventInfo.preRegEnabled===false;
+  formWrap.style.display = bothClosed ? 'none' : '';
+  closedNotice.style.display = bothClosed ? 'block' : 'none';
 }
 
 function setRegType(p,type){
@@ -1068,6 +1111,14 @@ async function submitDonorInner(p, printAfter){
   }
 
   if(res.duplicate){
+    if(p==='reg' && !isStaffLink){
+      // Public link: no PIN box shown at all here -- staff review this in person at the desk,
+      // not through a PIN prompt a donor standing at home could otherwise poke at.
+      resetSaveButtons(p);
+      endSaveFeedback(p, false);
+      toast('This CPR is already registered. Please see the event desk. / هذا الرقم مسجل بالفعل، يرجى التوجه إلى مكتب التسجيل.');
+      return false;
+    }
     await ensurePinLoaded();
     if(!pinIsSet){
       toast('This CPR is already registered. An organiser must set a PIN (Organiser tab) before this can be reviewed.');
@@ -1187,6 +1238,57 @@ function enterDashboard(){
   promptOrganiserName();
 }
 
+function openPinResetModal(){
+  document.getElementById('pinResetStep1').style.display = 'block';
+  document.getElementById('pinResetStep2').style.display = 'none';
+  document.getElementById('pinResetErr').style.display = 'none';
+  document.getElementById('pinResetCode').value = '';
+  document.getElementById('pinResetNewPin').value = '';
+  document.getElementById('pinResetRequestBtn').disabled = false;
+  document.getElementById('pinResetRequestBtn').textContent = 'Send reset code';
+  document.getElementById('pinResetBg').classList.add('active');
+}
+function closePinResetModal(){ document.getElementById('pinResetBg').classList.remove('active'); }
+
+async function requestPinResetAction(){
+  const btn = document.getElementById('pinResetRequestBtn');
+  const errEl = document.getElementById('pinResetErr');
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try{
+    await apiCall('requestPinReset');
+    document.getElementById('pinResetStep1').style.display = 'none';
+    document.getElementById('pinResetStep2').style.display = 'block';
+  }catch(err){
+    errEl.textContent = (err && err.message) ? err.message : 'Could not send the code -- check your connection and try again.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Send reset code';
+  }
+}
+
+async function confirmPinResetAction(){
+  const errEl = document.getElementById('pinResetErr');
+  const code = document.getElementById('pinResetCode').value.trim();
+  const newPin = document.getElementById('pinResetNewPin').value;
+  errEl.style.display = 'none';
+  if(!/^\d{6}$/.test(code)){ errEl.textContent = 'Enter the 6-digit code from the email.'; errEl.style.display='block'; return; }
+  if(newPin.length < 6){ errEl.textContent = 'New PIN must be at least 6 characters.'; errEl.style.display='block'; return; }
+  const btn = document.getElementById('pinResetConfirmBtn');
+  btn.disabled = true; btn.textContent = 'Setting...';
+  try{
+    await apiCall('confirmPinReset', {code: code, newPin: newPin});
+    closePinResetModal();
+    pinIsSet = true;
+    toast('PIN reset -- log in with your new PIN.');
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinInput').focus();
+  }catch(err){
+    errEl.textContent = (err && err.message) ? err.message : 'Could not reset the PIN -- check your connection and try again.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Set new PIN';
+  }
+}
+
 async function checkPin(){
   const v = document.getElementById('pinInput').value.trim();
   if(!v){ toast('Please enter a PIN.'); return; }
@@ -1231,6 +1333,7 @@ async function loadEventInfo(){
   document.getElementById('setEventDate').value = eventInfo.date||'';
   document.getElementById('setEventLoc').value = eventInfo.location||'';
   document.getElementById('setWalkInEnabled').checked = eventInfo.walkInEnabled !== false;
+  document.getElementById('setPreRegEnabled').checked = eventInfo.preRegEnabled !== false;
   refreshEventDisplay();
   applyWalkInVisibility(); applyPreRegVisibility();
 }
@@ -1248,7 +1351,8 @@ async function saveEventSettings(){
     name: document.getElementById('setEventName').value.trim() || 'Blood Donation Drive',
     date: document.getElementById('setEventDate').value,
     location: document.getElementById('setEventLoc').value.trim(),
-    walkInEnabled: document.getElementById('setWalkInEnabled').checked
+    walkInEnabled: document.getElementById('setWalkInEnabled').checked,
+    preRegEnabled: document.getElementById('setPreRegEnabled').checked
   };
   try{
     await apiCall('setEventInfo', {eventInfo: eventInfo});
@@ -1773,6 +1877,10 @@ function initStaticHandlers(){
   document.getElementById('registerAnotherBtn').addEventListener('click', resetRegisterForm);
 
   document.getElementById('pinEnterBtn').addEventListener('click', checkPin);
+  document.getElementById('forgotPinBtn').addEventListener('click', openPinResetModal);
+  document.getElementById('pinResetCloseBtn').addEventListener('click', closePinResetModal);
+  document.getElementById('pinResetRequestBtn').addEventListener('click', requestPinResetAction);
+  document.getElementById('pinResetConfirmBtn').addEventListener('click', confirmPinResetAction);
   document.getElementById('pinInput').addEventListener('keydown', function(e){ if(e.key==='Enter') checkPin(); });
   document.getElementById('settingsToggleBtn').addEventListener('click', toggleSettings);
   document.getElementById('saveEventBtn').addEventListener('click', saveEventSettings);
