@@ -429,8 +429,10 @@ const STAFF_LINK_SECRET = 'tubli2026desk';
 const isStaffLink = new URLSearchParams(window.location.search).get('staff') === STAFF_LINK_SECRET;
 if(!isStaffLink){
   document.addEventListener('DOMContentLoaded', function(){
-    const navDash = document.getElementById('navDash');
-    if(navDash) navDash.style.display = 'none';
+    // With Organiser already hidden, a lone "Register" button has nothing left to
+    // navigate between -- hide the whole nav bar rather than leave it sitting there alone.
+    const navBar = document.querySelector('.nav');
+    if(navBar) navBar.style.display = 'none';
   });
 }
 
@@ -728,8 +730,6 @@ function formHTML(p){
     '<div class="field">' +
       '<label>Quick health screening / فحص صحي سريع</label>' +
       '<div class="card" style="padding:14px 16px;background:var(--paper);">' +
-        '<div class="elig-row"><span>Feeling well today? / هل تشعر بصحة جيدة اليوم؟</span>' +
-          '<select id="'+p+'_q_feelwell"><option value="yes">Yes / نعم</option><option value="no">No / لا</option></select></div>' +
         '<div class="elig-row"><span>Donated blood in last 3 months? / تبرعت بالدم خلال 3 أشهر؟</span>' +
           '<select id="'+p+'_q_recentdon"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
         '<div class="elig-row"><span>Travelled outside Bahrain in last 4 weeks? / سافرت خارج البحرين خلال 4 أسابيع؟</span>' +
