@@ -153,7 +153,7 @@
   <div class="topbar">
     <div class="brand">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 11.5 5 16a7 7 0 0014 0c0-4.5-7-14-7-14z" fill="#9C1F2E"/></svg>
-      <h1>Donor Registry</h1>
+      <h1>التسجيل لحملة التبرع بالدم</h1>
     </div>
     <div class="nav">
       <button id="navRegister" class="active">Register / تسجيل</button>
@@ -164,8 +164,8 @@
   <p id="jsStatus" style="position:fixed;top:0;left:0;right:0;z-index:999;background:#fff;font-size:12px;color:#a08b78;text-align:center;margin:0;padding:8px 4px;border-bottom:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.08);">Loading...</p>
   <div id="view-register" class="view active">
     <div class="hero">
-      <p class="event" id="eventNameDisplay">Blood Donation Drive</p>
-      <p class="meta" id="eventMetaDisplay">Set your event details from the Organiser tab</p>
+      <p class="event" id="eventNameDisplay">حملة عطاء الزهراء ال 9 للتبرع بالدم</p>
+      <p class="meta" id="eventMetaDisplay">16 Oct 2026 -- حملة التبرع بالدم للرجال -- صالة فاطمة كانو -- توبلي</p>
     </div>
 
     <div id="registerFormWrap"></div>
@@ -201,11 +201,7 @@
     <div id="dashContent" style="display:none;">
       <button class="settings-toggle" id="settingsToggleBtn">Event settings</button>
       <div id="eventSettings" class="card" style="display:none;margin-bottom:20px;">
-        <div class="grid2">
-          <div class="field"><label>Event name</label><input type="text" id="setEventName"></div>
-          <div class="field"><label>Event date</label><input type="date" id="setEventDate"></div>
-        </div>
-        <div class="field"><label>Location</label><input type="text" id="setEventLoc"></div>
+        <p class="hint">Event name, date and location are fixed in this build and no longer editable here -- contact whoever maintains the app to change them.</p>
         <label class="checkline" style="margin-top:0;">
           <input type="checkbox" id="setWalkInEnabled" checked>
           <span>Allow walk-in registration on the public form (organiser can still add walk-ins manually either way)</span>
@@ -499,7 +495,14 @@ async function apiCallReadRetry(action, payload, retries, delays){
 }
 
 let allDonors = [];
-let eventInfo = {name:'Blood Donation Drive', date:'', location:'', walkInEnabled:true, preRegEnabled:true};
+// FIXED EVENT DETAILS -- transcribed from screenshots. PLEASE VERIFY THIS ARABIC TEXT IS
+// EXACTLY CORRECT before relying on it -- this is now the only place these values live,
+// since the editable Settings fields for them have been removed.
+const FIXED_EVENT_NAME = 'حملة عطاء الزهراء ال 9 للتبرع بالدم';
+const FIXED_EVENT_DATE = '2026-10-16';
+const FIXED_EVENT_LOCATION = 'حملة التبرع بالدم للرجال -- صالة فاطمة كانو -- توبلي';
+
+let eventInfo = {name:FIXED_EVENT_NAME, date:FIXED_EVENT_DATE, location:FIXED_EVENT_LOCATION, walkInEnabled:true, preRegEnabled:true};
 let authed = false;
 let lastRegisteredId = null;
 let lastRegisteredDonor = null;
@@ -693,20 +696,11 @@ function formHTML(p){
       '</div>',
     '</div>',
 
-    '<div class="grid2">',
-      '<div class="field" id="'+p+'_dob_field">',
-        '<label>Date of birth / تاريخ الميلاد *</label>',
-        '<input type="date" id="'+p+'_dob">',
-        '<p class="err">Please enter date of birth. / يرجى إدخال تاريخ الميلاد.</p>',
-        '<p class="hint" id="'+p+'_age_display"></p>',
-      '</div>',
-      '<div class="field">',
-        '<label>Gender / الجنس</label>',
-        '<select id="'+p+'_gender" disabled>',
-          '<option value="Male" selected>Male / ذكر</option>',
-        '</select>',
-        '<p class="hint">This event is for male donors only. / هذه الفعالية للمتبرعين الذكور فقط.</p>',
-      '</div>',
+    '<div class="field" id="'+p+'_dob_field">',
+      '<label>Date of birth / تاريخ الميلاد *</label>',
+      '<input type="date" id="'+p+'_dob" max="2008-10-16">',
+      '<p class="err">Please enter date of birth. / يرجى إدخال تاريخ الميلاد.</p>',
+      '<p class="hint" id="'+p+'_age_display"></p>',
     '</div>',
 
     '<div class="grid2">',
@@ -1074,7 +1068,7 @@ async function submitDonorInner(p, printAfter){
     fullName: document.getElementById(p+'_name').value.trim(),
     cpr: cpr,
     dob: document.getElementById(p+'_dob').value,
-    gender: document.getElementById(p+'_gender').value,
+    gender: 'Male', // hardcoded: the Gender field was removed from both forms since this event is male-only; still recorded and still shown on the printed form
     phone: document.getElementById(p+'_phone').value.trim(),
     email: document.getElementById(p+'_email').value.trim(),
     bloodType: document.getElementById(p+'_bloodtype').value,
@@ -1176,7 +1170,10 @@ async function ensurePinLoaded(){
   try{
     const res = await apiCall('getSettings');
     pinIsSet = !!res.pinSet;
-    if(res.eventInfo) eventInfo = res.eventInfo;
+    if(res.eventInfo){
+      eventInfo.walkInEnabled = res.eventInfo.walkInEnabled;
+      eventInfo.preRegEnabled = res.eventInfo.preRegEnabled;
+    }
     applyWalkInVisibility(); applyPreRegVisibility();
   }catch(err){
     pinIsSet = false;
@@ -1326,12 +1323,14 @@ function toggleSettings(){
 async function loadEventInfo(){
   try{
     const res = await apiCall('getSettings');
-    if(res.eventInfo) eventInfo = res.eventInfo;
+    // name/date/location are fixed constants now -- never let a stale Airtable value
+    // override them. Only the two toggles remain genuinely editable/dynamic.
+    if(res.eventInfo){
+      eventInfo.walkInEnabled = res.eventInfo.walkInEnabled;
+      eventInfo.preRegEnabled = res.eventInfo.preRegEnabled;
+    }
     pinIsSet = !!res.pinSet;
   }catch(err){ /* keep current defaults */ }
-  document.getElementById('setEventName').value = eventInfo.name||'';
-  document.getElementById('setEventDate').value = eventInfo.date||'';
-  document.getElementById('setEventLoc').value = eventInfo.location||'';
   document.getElementById('setWalkInEnabled').checked = eventInfo.walkInEnabled !== false;
   document.getElementById('setPreRegEnabled').checked = eventInfo.preRegEnabled !== false;
   refreshEventDisplay();
@@ -1348,9 +1347,9 @@ function refreshEventDisplay(){
 
 async function saveEventSettings(){
   eventInfo = {
-    name: document.getElementById('setEventName').value.trim() || 'Blood Donation Drive',
-    date: document.getElementById('setEventDate').value,
-    location: document.getElementById('setEventLoc').value.trim(),
+    name: FIXED_EVENT_NAME,
+    date: FIXED_EVENT_DATE,
+    location: FIXED_EVENT_LOCATION,
     walkInEnabled: document.getElementById('setWalkInEnabled').checked,
     preRegEnabled: document.getElementById('setPreRegEnabled').checked
   };
@@ -1942,7 +1941,10 @@ try{
   }
   try{
     const res = await apiCall('getSettings');
-    if(res.eventInfo) eventInfo = res.eventInfo;
+    if(res.eventInfo){
+      eventInfo.walkInEnabled = res.eventInfo.walkInEnabled;
+      eventInfo.preRegEnabled = res.eventInfo.preRegEnabled;
+    }
     pinIsSet = !!res.pinSet;
     refreshEventDisplay();
     applyWalkInVisibility(); applyPreRegVisibility();
