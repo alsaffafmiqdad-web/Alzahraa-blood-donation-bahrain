@@ -1636,7 +1636,7 @@ function viewDonor(id){
       '<div><b>Registration type</b>'+(d.regType==='pre'?'Pre-registration':'Walk-in')+'</div>' +
       '<div><b>Status</b>'+(STATUS_LABELS[d.status]||'Registered')+'</div>' +
       (d.queueNumber?'<div><b>Queue number</b>#'+d.queueNumber+'</div>':'') +
-      (d.preferredDate?'<div><b>Preferred date</b>'+fmtDate(d.preferredDate)+'</div>':'') +
+      (d.preferredDate?'<div><b>Preferred time</b>'+esc(d.preferredDate)+'</div>':'') +
       '<div><b>Registered on</b>'+fmtDate(d.createdAt)+'</div>' +
     '</div>' +
     (d.status==='registered'?'<button class="btn secondary" id="viewModalVerifyBtn" style="margin-top:10px;">Verify (CPR photo matches details)</button>':'') +
