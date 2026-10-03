@@ -1055,29 +1055,40 @@ async function submitDonorInner(p, printAfter){
 
   const cpr = document.getElementById(p+'_cpr').value.trim();
 
-  // The organiser's Add donor form has no health screening or Notes fields (removed to
-  // keep desk entry fast, since the donor still goes through real medical screening in
-  // person). Default to "no red flags reported" rather than reading a null element --
-  // age-based flagging still works fine either way, since DOB is always collected.
+  // Some forms don't ask every health-screening question (the organiser's Add donor form
+  // asks none at all; the public form no longer asks Feeling well, Tattoo/piercing, or
+  // Travel). A question that wasn't shown must NOT be recorded as if it got a real "No" --
+  // that would make the data look like it was asked and answered when it never was. So we
+  // keep two separate things: a safe fallback used only to decide flagging (never flags on
+  // a question that wasn't asked), and the actual value to save, which is blank when the
+  // question wasn't shown.
   function fieldVal(id, fallback){
     const el = document.getElementById(id);
     return el ? el.value : fallback;
   }
+  function fieldValOrBlank(id){
+    const el = document.getElementById(id);
+    return el ? el.value : ''; // blank = "not asked", never a fabricated answer
+  }
+  const feelWellForFlag = fieldVal(p+'_q_feelwell', 'yes');
+  const recentDonationForFlag = fieldVal(p+'_q_recentdon', 'no');
+  const recentProcedureForFlag = fieldVal(p+'_q_procedure', 'no');
+  const onMedicationForFlag = fieldVal(p+'_q_medication', 'no');
   const eligibility = {
-    feelWell: fieldVal(p+'_q_feelwell', 'yes'),
-    recentDonation: fieldVal(p+'_q_recentdon', 'no'),
-    recentProcedure: fieldVal(p+'_q_procedure', 'no'),
-    recentTravel: fieldVal(p+'_q_travel', 'no'),
-    onMedication: fieldVal(p+'_q_medication', 'no')
+    feelWell: fieldValOrBlank(p+'_q_feelwell'),
+    recentDonation: fieldValOrBlank(p+'_q_recentdon'),
+    recentProcedure: fieldValOrBlank(p+'_q_procedure'),
+    recentTravel: fieldValOrBlank(p+'_q_travel'),
+    onMedication: fieldValOrBlank(p+'_q_medication')
   };
   const dobVal = document.getElementById(p+'_dob').value;
   const ageAtEvent = dobVal ? calculateAgeAtEvent(dobVal) : null;
   const ageOutOfRange = ageAtEvent !== null && (ageAtEvent < 18 || ageAtEvent > 65);
   const flagReasons = [];
-  if(eligibility.feelWell==='no') flagReasons.push('Not feeling well');
-  if(eligibility.recentDonation==='yes') flagReasons.push('Recent donation');
-  if(eligibility.recentProcedure==='yes') flagReasons.push('Recent tattoo/piercing/surgery');
-  if(eligibility.onMedication==='yes') flagReasons.push('On medication');
+  if(feelWellForFlag==='no') flagReasons.push('Not feeling well');
+  if(recentDonationForFlag==='yes') flagReasons.push('Recent donation');
+  if(recentProcedureForFlag==='yes') flagReasons.push('Recent tattoo/piercing/surgery');
+  if(onMedicationForFlag==='yes') flagReasons.push('On medication');
   if(ageOutOfRange) flagReasons.push('Age ' + ageAtEvent + ' outside 18-65');
   const flagged = flagReasons.length > 0;
   const flagReason = flagReasons.join('; ');
@@ -1630,7 +1641,15 @@ function viewDonor(id){
     '</div>' +
     (d.status==='registered'?'<button class="btn secondary" id="viewModalVerifyBtn" style="margin-top:10px;">Verify (CPR photo matches details)</button>':'') +
     (d.notes?'<p class="hint" style="margin-top:10px;"><b>Notes:</b> '+esc(d.notes)+'</p>':'') +
-    (elig.feelWell?'<p class="hint" style="margin-top:10px;">Screening: feeling well: '+elig.feelWell+' -- recent donation: '+elig.recentDonation+' -- recent procedure: '+elig.recentProcedure+' -- recent travel: '+elig.recentTravel+' -- on medication: '+elig.onMedication+'</p>':'') +
+    (function(){
+      const parts = [];
+      if(elig.feelWell) parts.push('feeling well: '+elig.feelWell);
+      if(elig.recentDonation) parts.push('recent donation: '+elig.recentDonation);
+      if(elig.recentProcedure) parts.push('recent procedure: '+elig.recentProcedure);
+      if(elig.recentTravel) parts.push('recent travel: '+elig.recentTravel);
+      if(elig.onMedication) parts.push('on medication: '+elig.onMedication);
+      return parts.length ? '<p class="hint" style="margin-top:10px;">Screening: '+parts.join(' -- ')+'</p>' : '';
+    })() +
     cprAttachmentHTML(d) +
     (d.statusHistory && d.statusHistory.length ?
       '<div class="pf-section-title" style="margin-top:16px;">Status history</div>' +
