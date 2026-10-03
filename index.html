@@ -265,6 +265,9 @@
             <option value="donated">Donated</option>
             <option value="deferred">Deferred</option>
             <option value="flagged">Flagged only</option>
+          </select>          <select id="sortBy" class="filter-select" aria-label="Sort by">
+            <option value="default">Sort: Registration order</option>
+            <option value="preferredTime">Sort: Preferred time</option>
           </select>          <button class="btn" id="addDonorBtn">Add donor</button>
           <button class="btn ghost" id="printAllBtn">Print all</button>
           <button class="btn ghost" id="exportCsvBtn">Export CSV</button>
@@ -277,7 +280,7 @@
       <div class="card" style="padding:0;overflow-x:auto;">
         <table id="donorTable">
           <thead><tr>
-            <th>#</th><th>Name</th><th>CPR</th><th>Type</th><th>Phone</th><th>Registered</th><th>Screening</th><th>Status</th><th></th>
+            <th>#</th><th>Name</th><th>CPR</th><th>Type</th><th>Preferred time</th><th>Phone</th><th>Registered</th><th>Screening</th><th>Status</th><th></th>
           </tr></thead>
           <tbody id="donorTbody"></tbody>
         </table>
@@ -663,9 +666,10 @@ function compressImage(file){
 // ---------- form template ----------
 function timeSlotOptionsHTML(){
   const slots = [];
-  for(let h=8; h<=14; h++){
-    for(let m=0; m<60; m+=15){
-      if(h===14 && m>0) break; // stop exactly at 2:00 PM
+  for(let h=8; h<=13; h++){
+    for(let m=0; m<60; m+=30){
+      if(h===8 && m===0) continue; // start at 8:30, not 8:00
+      if(h===13 && m>30) break; // stop exactly at 1:30 PM
       const hour12 = h>12 ? h-12 : h;
       const ampm = h>=12 ? 'PM' : 'AM';
       slots.push(hour12 + ':' + (m===0?'00':m) + ' ' + ampm);
@@ -750,8 +754,6 @@ function formHTML(p){
       '<div class="card" style="padding:14px 16px;background:var(--paper);">' +
         '<div class="elig-row"><span>Donated blood in last 3 months? / تبرعت بالدم خلال 3 أشهر؟</span>' +
           '<select id="'+p+'_q_recentdon"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
-        '<div class="elig-row"><span>Travelled outside Bahrain in last 4 weeks? / سافرت خارج البحرين خلال 4 أسابيع؟</span>' +
-          '<select id="'+p+'_q_travel"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
         '<div class="elig-row" style="border-bottom:none;"><span>Taking antibiotics or medication? / تتناول مضادات حيوية أو أدوية؟</span>' +
           '<select id="'+p+'_q_medication"><option value="no">No / لا</option><option value="yes">Yes / نعم</option></select></div>' +
       '</div>' +
@@ -1500,15 +1502,40 @@ async function updateDonorStatus(id, newStatus){
 
 // One place decides which donors are "currently shown" -- used by the table AND Print all,
 // so what you see is what gets printed. CSV export deliberately ignores filters (full backup).
+function parseTimeSlotMinutes(s){
+  if(!s) return null;
+  const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(s.trim());
+  if(!m) return null;
+  let h = parseInt(m[1],10);
+  const min = parseInt(m[2],10);
+  const ampm = m[3].toUpperCase();
+  if(ampm==='PM' && h!==12) h+=12;
+  if(ampm==='AM' && h===12) h=0;
+  return h*60+min;
+}
+
 function getFilteredDonors(){
   const q = (document.getElementById('searchBox').value||'').toLowerCase();
   const sf = document.getElementById('statusFilter').value;
-  return allDonors.filter(function(d){
+  const sortByEl = document.getElementById('sortBy');
+  const sortBy = sortByEl ? sortByEl.value : 'default';
+  let rows = allDonors.filter(function(d){
     if(q && !(d.fullName.toLowerCase().includes(q) || d.cpr.includes(q))) return false;
     if(sf==='flagged') return !!d.flagged;
     if(sf!=='all' && d.status!==sf) return false;
     return true;
   });
+  if(sortBy==='preferredTime'){
+    rows = rows.slice().sort(function(a,b){
+      const ta = parseTimeSlotMinutes(a.preferredDate);
+      const tb = parseTimeSlotMinutes(b.preferredDate);
+      if(ta===null && tb===null) return a._seq-b._seq; // neither has a time -> keep registration order
+      if(ta===null) return 1;  // no preferred time (e.g. walk-ins) sorts to the end
+      if(tb===null) return -1;
+      return ta-tb;
+    });
+  }
+  return rows;
 }
 
 function renderTable(){
@@ -1535,6 +1562,7 @@ function renderTable(){
       '<td>'+esc(d.fullName)+'</td>' +
       '<td>'+esc(d.cpr)+'</td>' +
       '<td><span class="pill '+(d.regType==='pre'?'pre':'walkin')+'">'+(d.regType==='pre'?'Pre-reg':'Walk-in')+'</span></td>' +
+      '<td>'+(d.preferredDate?esc(d.preferredDate):String.fromCharCode(8212))+'</td>' +
       '<td>'+esc(d.phone)+'</td>' +
       '<td>'+fmtDate(d.createdAt)+'</td>' +
       '<td>'+(d.flagged?'<span class="pill flag" style="white-space:normal;">'+esc(d.flagReason||'Review')+'</span>':String.fromCharCode(8212))+'</td>' +
@@ -1905,6 +1933,7 @@ function initStaticHandlers(){
 
   document.getElementById('searchBox').addEventListener('input', renderTable);
   document.getElementById('statusFilter').addEventListener('change', renderTable);
+  document.getElementById('sortBy').addEventListener('change', renderTable);
   document.getElementById('addDonorBtn').addEventListener('click', openAddModal);
   document.getElementById('printAllBtn').addEventListener('click', printAllDonors);
   document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
