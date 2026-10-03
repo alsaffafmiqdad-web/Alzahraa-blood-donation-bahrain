@@ -107,22 +107,6 @@ Two workflows in `.github/workflows/`:
 - **`ci.yml`** runs on every pull request and on pushes to other branches. It runs typecheck, lint, the vitest suite and `next build`, the plain Postgres SQL suite, and the migration plus pgTAP on Supabase's own Postgres image (`supabase db start && supabase test db`). It needs no secrets, so it also runs on PRs from forks.
 - **`deploy.yml`** runs on every push to `main` (merging a PR) and can be started by hand (Actions > Deploy > Run workflow). In order: all CI checks, then `supabase db push` to the production project, then `vercel build --prod` and `vercel deploy --prebuilt --prod`. If a step fails, nothing after it runs, so a failed migration never ships new code. Two deploys never run at the same time.
 
-One-time setup (needs admin on the GitHub repository). Repository **variables** (not secret):
-
-```bash
-gh variable set SUPABASE_PROJECT_ID --body eoujbdphkfpapfnqssss
-gh variable set VERCEL_ORG_ID --body <orgId from .vercel/project.json>
-gh variable set VERCEL_PROJECT_ID --body <projectId from .vercel/project.json>
-```
-
-Repository **secrets** (each command prompts for the value; never put them in files):
-
-```bash
-gh secret set SUPABASE_ACCESS_TOKEN   # supabase.com > Account > Access Tokens
-gh secret set SUPABASE_DB_PASSWORD    # the database password chosen when the project was created
-gh secret set VERCEL_TOKEN            # vercel.com > Account Settings > Tokens, scoped to the team
-```
-
 The deploy jobs use the GitHub environment `production` (created on the first run). To require a manual approval before each production deploy, add yourself as a required reviewer under Settings > Environments > production.
 
 Rollback: `vercel rollback` (or Promote an older deployment in the Vercel dashboard) restores the previous app instantly. Database migrations are not rolled back automatically: write a new forward migration instead.
