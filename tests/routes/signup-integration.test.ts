@@ -89,7 +89,11 @@ describe("signup end to end with mocked edges", () => {
   it("happy path: verifies Turnstile with secret+token+ip, registers, emails", async () => {
     const res = await POST(req(good));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, ref: "ABCDEF12", slotId: 3, emailStatus: "sent" });
+    const resBody = (await res.json()) as Record<string, unknown>;
+    expect(resBody).toMatchObject({ ok: true, ref: "ABCDEF12", slotId: 3, emailStatus: "sent" });
+    // A signed card token for the success-page download; it carries no CPR.
+    expect(resBody.card).toMatch(/^abcdef12-3456-4890-8bcd-ef1234567890\.\d+\.[A-Za-z0-9_-]{43}$/);
+    expect(JSON.stringify(resBody)).not.toContain(good.cpr);
     const [url, init] = h.fetchMock.mock.calls[0]!;
     expect(url).toBe("https://challenges.cloudflare.com/turnstile/v0/siteverify");
     const body = (init.body as URLSearchParams).toString();

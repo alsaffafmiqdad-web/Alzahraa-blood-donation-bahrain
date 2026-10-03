@@ -51,7 +51,7 @@ const row = (status: DonorListRow["status"], id = "id-" + status): DonorListRow 
   seq: 1,
   ref: "ABCDEF12",
   fullName: "Ali Hasan",
-  cprMasked: "*****1234",
+  cpr: "990101234",
   phone: null,
   email: null,
   bloodType: "O+",

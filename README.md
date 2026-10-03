@@ -138,7 +138,8 @@ Supabase Free has no downloadable backups. Every week an organiser should open A
 - The service role key is read only in `lib/env.ts` and `lib/supabase/admin.ts`, behind `server-only`.
 - Every admin page and action calls `requireAdmin()`. `proxy.ts` only redirects signed-out visitors as a convenience.
 - The dashboard search form is a POST (a Server Action); a full CPR typed into it is reduced to its last 4 digits before redirecting, so a CPR never lands in the URL, browser history or Vercel request logs.
-- The full CPR appears only on the donor detail page and in the CSV. The list, the print pages, the email and the PDF never show it.
+- The full CPR is shown only to signed-in admins: the dashboard list, the donor detail page, the print forms and the CSV (staff need it at the desk). The email and the donor card PDF never contain it.
+- After signing up, the donor can download their own card from the success page. `/api/signup` returns a signed token (HMAC-SHA256, key derived from `RATE_LIMIT_SALT`, valid for 2 hours) that the page keeps in `sessionStorage` for that tab only and sends in a POST body to `/api/card`, so it never appears in a URL or request log. A missing, altered or expired token gets a 403, and the card has no CPR.
 - Security headers are set in `next.config.ts` (frame-ancestors, nosniff, referrer policy, permissions policy). A strict `script-src` CSP is not set: Next injects inline scripts, so it would need per-request nonces, which is out of scope here.
 - The dashboard, the print pages, the slots page and the CSV export read donors in pages of 1000 (`.range()` loops), because PostgREST silently caps a response at 1000 rows.
 - The rate limit fails open if the database call errors. Turnstile is still enforced in that case.

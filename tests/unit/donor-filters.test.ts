@@ -74,11 +74,9 @@ describe("donor filters", () => {
     expect(s.walkIns).toBe(1);
     expect(s.emailsPending).toBe(1);
   });
-  it("list rows never contain the full cpr", () => {
+  it("list rows carry the full cpr for admins", () => {
     const row = toListRow(numbered[1]!, slots);
-    expect(row).not.toHaveProperty("cpr");
-    expect(row.cprMasked).toBe("*****1123");
-    expect(JSON.stringify(row)).not.toContain("990101123");
+    expect(row.cpr).toBe("990101123");
     expect(row.slotTime).toBe("09:00:00");
   });
   it("parses filters and ignores junk", () => {

@@ -28,7 +28,7 @@ describe("SignupForm", () => {
     expect(html).toMatch(/<option value="2" disabled/);
     expect(html).not.toContain('max="2008-10-16"'); // under-18 is flagged, never blocked
     expect(html).toContain('maxLength="16"'); // phone: room for a pasted +973
-    expect(html).toContain('maxLength="9"');
+    expect(html).toContain('maxLength="13"'); // cpr: room for a pasted 990-101-123; cprInput keeps 9 digits
     expect(html).not.toMatch(/\b(ml|mr|pl|pr)-\d/);
   });
 });

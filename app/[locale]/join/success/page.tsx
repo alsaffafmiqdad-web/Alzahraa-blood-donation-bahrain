@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CardDownload } from "@/components/public/CardDownload";
 import { getEvent, getSlotAvailability } from "@/lib/db/public";
 import { formatDate, formatSlot } from "@/lib/format";
 import { getDictionary, isLocale, t } from "@/lib/i18n";
@@ -78,6 +79,7 @@ export default async function SuccessPage({
           )}
         </div>
       )}
+      {valid && <CardDownload dict={dict.success} />}
       {emailMessage && <p>{emailMessage}</p>}
       <p className="font-medium">{dict.success.bring_cpr}</p>
       <p className="text-sm text-ink-soft">{dict.common.disclaimer}</p>

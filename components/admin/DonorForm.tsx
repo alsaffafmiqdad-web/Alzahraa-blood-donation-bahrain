@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { addDonor, editDonor } from "@/app/admin/actions";
 import { initialFormState } from "@/app/admin/action-types";
 import { BLOOD_TYPES } from "@/lib/config";
+import { cprInput, phoneInput } from "@/lib/cpr";
 import { formatSlot } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 
@@ -100,7 +101,7 @@ export function DonorForm({
           <label htmlFor="cpr" className={labelCls}>
             CPR *
           </label>
-          <input id="cpr" name="cpr" className={inputCls} inputMode="numeric" maxLength={9} value={v.cpr} onChange={set("cpr")} required />
+          <input id="cpr" name="cpr" className={inputCls} inputMode="numeric" maxLength={13} pattern="[0-9]{9}" title="9 digits" value={v.cpr} onChange={(e) => setV((p) => ({ ...p, cpr: cprInput(e.target.value) }))} required />
           {fe.cpr && <p className="mt-1 text-sm text-crimson">{fe.cpr}</p>}
           {state.existing && (
             <p className="mt-1 text-sm">
@@ -114,7 +115,7 @@ export function DonorForm({
           <label htmlFor="phone" className={labelCls}>
             Phone
           </label>
-          <input id="phone" name="phone" className={inputCls} inputMode="numeric" maxLength={8} value={v.phone} onChange={set("phone")} />
+          <input id="phone" name="phone" className={inputCls} inputMode="numeric" maxLength={16} pattern="[0-9]{8}" title="8 digits" value={v.phone} onChange={(e) => setV((p) => ({ ...p, phone: phoneInput(e.target.value) }))} />
           {fe.phone && <p className="mt-1 text-sm text-crimson">{fe.phone}</p>}
         </div>
         <div>

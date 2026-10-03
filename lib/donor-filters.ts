@@ -1,5 +1,5 @@
 import { STATUSES } from "@/lib/config";
-import { maskCpr, normaliseDigits } from "@/lib/cpr";
+import { normaliseDigits } from "@/lib/cpr";
 import { shortRef } from "@/lib/format";
 
 export type Status = (typeof STATUSES)[number];
@@ -28,7 +28,7 @@ export type DonorListRow = {
   seq: number;
   ref: string;
   fullName: string;
-  cprMasked: string;
+  cpr: string;
   phone: string | null;
   email: string | null;
   bloodType: string;
@@ -137,14 +137,14 @@ export function computeStats(rows: DonorRecord[]): DonorStats {
   return { total: rows.length, byStatus, flagged, walkIns, emailsPending };
 }
 
-/** Maps to the client-safe row. The full CPR is dropped here. */
+/** Maps to the row sent to the admin dashboard (admins see the full CPR). */
 export function toListRow(r: NumberedDonor, slots: SlotTimes): DonorListRow {
   return {
     id: r.id,
     seq: r.seq,
     ref: shortRef(r.id),
     fullName: r.full_name,
-    cprMasked: maskCpr(r.cpr),
+    cpr: r.cpr,
     phone: r.phone,
     email: r.email,
     bloodType: r.blood_type,

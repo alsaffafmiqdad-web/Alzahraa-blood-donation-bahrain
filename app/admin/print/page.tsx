@@ -1,5 +1,4 @@
 import { requireAdmin } from "@/lib/auth";
-import { maskCpr } from "@/lib/cpr";
 import {
   filterDonors,
   parseFilters,
@@ -67,7 +66,7 @@ export default async function PrintListPage({
           const donor: PrintDonor = {
             ref: shortRef(r.id),
             fullName: r.full_name,
-            cprMasked: maskCpr(r.cpr),
+            cpr: r.cpr,
             dob: x?.dob ?? null,
             phone: r.phone,
             email: r.email,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Printer } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { checkInDonor } from "@/app/admin/actions";
@@ -76,7 +77,7 @@ export function DonorTable({ rows, totalCount }: { rows: DonorListRow[]; totalCo
                   {r.fullName}
                 </Link>
               </TableCell>
-              <TableCell className="font-mono text-xs">{r.cprMasked}</TableCell>
+              <TableCell className="font-mono text-xs">{r.cpr}</TableCell>
               <TableCell>
                 <span className="rounded-full bg-paper-2 px-2 py-0.5 text-xs">{SOURCE_LABEL[r.source]}</span>
               </TableCell>
@@ -97,7 +98,22 @@ export function DonorTable({ rows, totalCount }: { rows: DonorListRow[]; totalCo
                 <StatusControl donorId={r.id} name={r.fullName} status={r.status} />
               </TableCell>
               <TableCell>
-                {(r.status === "registered" || r.status === "verified" || r.status === "no_show") && <CheckInButton row={r} />}
+                <div className="flex items-center gap-2">
+                  {(r.status === "registered" || r.status === "verified" || r.status === "no_show") && (
+                    <CheckInButton row={r} />
+                  )}
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      href={`/admin/donors/${r.id}/print?autoprint=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Print form for ${r.fullName}`}
+                    >
+                      <Printer className="size-4" aria-hidden="true" />
+                      Print
+                    </a>
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

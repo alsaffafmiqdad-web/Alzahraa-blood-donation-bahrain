@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BLOOD_TYPES, AGE_MAX, AGE_MIN } from "@/lib/config";
-import { normaliseDigits, toAsciiDigits } from "@/lib/cpr";
+import { cprInput, phoneInput, toAsciiDigits } from "@/lib/cpr";
+import { CARD_TOKEN_KEY } from "@/components/public/CardDownload";
 import { formatSlot } from "@/lib/format";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
@@ -127,6 +128,12 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint }: Props) 
     return false;
   }
 
+  /** Show the length error as soon as a partly filled field is left, rather than only on submit. */
+  function markLength(key: "cpr" | "phone", value: string, length: number, code: string) {
+    if (value === "" || value.length === length) return;
+    setErrors((prev) => (prev[key] ? prev : { ...prev, [key]: code }));
+  }
+
   function errText(key: string): string {
     const code = errors[key];
     if (!code) return "";
@@ -172,8 +179,14 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint }: Props) 
         ref?: string;
         slotId?: number;
         emailStatus?: string;
+        card?: string;
       };
       if (res.ok && json.ok) {
+        try {
+          if (json.card) sessionStorage.setItem(CARD_TOKEN_KEY, json.card);
+        } catch {
+          // Storage blocked (private mode): the success page just hides the download button.
+        }
         const qs = new URLSearchParams({
           ref: json.ref ?? "",
           slot: String(json.slotId ?? ""),
@@ -267,19 +280,19 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint }: Props) 
           id="f-cpr"
           className={inputCls}
           inputMode="numeric"
-          maxLength={9}
+          maxLength={13}
           autoComplete="off"
           dir="ltr"
           value={v.cpr}
+          pattern="[0-9]{9}"
           onChange={(e) => {
             const el = e.target;
-            const value = el.value;
+            const value = cprInput(el.value);
+            const atEnd = el.selectionStart === el.value.length;
             set("cpr", value);
-            const atEnd = el.selectionStart === value.length;
-            if (value.length === 9 && /^[0-9]{9}$/.test(normaliseDigits(value)) && atEnd) {
-              dobRef.current?.focus();
-            }
+            if (value.length === 9 && atEnd) dobRef.current?.focus();
           }}
+          onBlur={() => markLength("cpr", v.cpr, 9, "cpr_invalid")}
           aria-invalid={!!errors.cpr}
         />
         {errors.cpr && <p className={errCls}>{errText("cpr")}</p>}
@@ -320,10 +333,12 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint }: Props) 
           className={inputCls}
           inputMode="numeric"
           maxLength={16}
+          pattern="[0-9]{8}"
           autoComplete="tel-national"
           dir="ltr"
           value={v.phone}
-          onChange={(e) => set("phone", e.target.value)}
+          onChange={(e) => set("phone", phoneInput(e.target.value))}
+          onBlur={() => markLength("phone", v.phone, 8, "phone_invalid")}
           aria-invalid={!!errors.phone}
         />
         {errors.phone && <p className={errCls}>{errText("phone")}</p>}

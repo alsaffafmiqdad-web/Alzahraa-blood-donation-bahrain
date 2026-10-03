@@ -1,9 +1,9 @@
 import "server-only";
 import { EMAIL_CONCURRENCY } from "@/lib/config";
 import { claimEmailSend, finishEmailSend, getDonorForEmail } from "@/lib/db/email";
-import { emailDailyBudget, orgInfo, resendConfig } from "@/lib/env";
+import { emailDailyBudget, resendConfig } from "@/lib/env";
 import { sendConfirmationEmail } from "@/lib/email/send";
-import { shortRef } from "@/lib/format";
+import { donorCardData } from "@/lib/pdf/donor-card-pdf";
 import { renderDonorCard } from "@/lib/pdf/render";
 
 export type EmailOutcome = "sent" | "queued" | "failed" | "none";
@@ -24,15 +24,7 @@ export async function sendDonorEmail(donorId: string): Promise<EmailOutcome> {
     claimId = await claimEmailSend(donorId, emailDailyBudget());
     if (claimId === null) return "queued";
 
-    const data = {
-      fullName: donor.fullName,
-      ref: shortRef(donor.id),
-      bloodType: donor.bloodType,
-      slotTime: donor.slotTime,
-      signupDate: donor.createdAt,
-      event: donor.event,
-      org: orgInfo(),
-    };
+    const data = donorCardData(donor);
     const pdf = await renderDonorCard(data);
     const result = await sendConfirmationEmail({ ...data, emailTo: donor.email }, pdf);
     await finishEmailSend(claimId, result.ok, result.ok ? null : result.error);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createCardToken } from "@/lib/card-link";
 import { MAX_SIGNUP_BODY_BYTES } from "@/lib/config";
 import { getEvent, registerDonor } from "@/lib/db/public";
 import { sendDonorEmail } from "@/lib/email/dispatch";
@@ -95,7 +96,15 @@ export async function POST(req: Request) {
       emailStatus = outcome === "sent" ? "sent" : outcome === "none" ? "none" : "queued";
     }
 
-    return json({ ok: true, ref: shortRef(result.id), slotId: input.slotId, emailStatus }, 200);
+    // The card download is a convenience: if the token can't be made, the registration still succeeds.
+    let card: string | undefined;
+    try {
+      card = createCardToken(result.id);
+    } catch (e) {
+      console.error(`card token error donor=${result.id}: ${e instanceof Error ? e.message : "unknown"}`);
+    }
+
+    return json({ ok: true, ref: shortRef(result.id), slotId: input.slotId, emailStatus, ...(card ? { card } : {}) }, 200);
   } catch (e) {
     console.error(`signup error: ${e instanceof Error ? e.message : "unknown"}`);
     return json({ ok: false, error: "server" }, 500);

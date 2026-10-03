@@ -4,7 +4,7 @@ import { en } from "@/lib/i18n/dictionaries/en";
 export type PrintDonor = {
   ref: string;
   fullName: string;
-  cprMasked: string;
+  cpr: string;
   dob: string | null;
   phone: string | null;
   email: string | null;
@@ -33,7 +33,7 @@ export function PrintForm({ donor, event, printedOn }: { donor: PrintDonor; even
   const flagLabels = en.flags as Record<string, string>;
   const details: [string, string][] = [
     ["Name", donor.fullName],
-    ["CPR", donor.cprMasked],
+    ["CPR", donor.cpr],
     ["Date of birth", donor.dob ?? "-"],
     ["Phone", donor.phone ?? "-"],
     ["Email", donor.email ?? "-"],

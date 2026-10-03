@@ -1,17 +1,24 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { maskCpr } from "@/lib/cpr";
 import { formatDateTime, shortRef } from "@/lib/format";
 import { donorIdSchema } from "@/lib/validation";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { AutoPrint } from "@/components/admin/AutoPrint";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { PrintForm, type PrintDonor, type PrintEvent } from "@/components/admin/PrintForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function PrintDonorPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PrintDonorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
   const { supabase, displayName } = await requireAdmin();
+  const autoPrint = (await searchParams)?.autoprint === "1";
   if (!donorIdSchema.safeParse(id).success) notFound();
 
   const { data } = await supabase
@@ -49,7 +56,7 @@ export default async function PrintDonorPage({ params }: { params: Promise<{ id:
   const donor: PrintDonor = {
     ref: shortRef(d.id),
     fullName: d.full_name,
-    cprMasked: maskCpr(d.cpr),
+    cpr: d.cpr,
     dob: d.dob,
     phone: d.phone,
     email: d.email,
@@ -68,6 +75,7 @@ export default async function PrintDonorPage({ params }: { params: Promise<{ id:
       <div className="no-print mb-4">
         <PrintButton />
       </div>
+      {autoPrint && <AutoPrint />}
       <PrintForm donor={donor} event={eventRes.data as PrintEvent} printedOn={formatDateTime(new Date().toISOString())} />
     </AdminShell>
   );
