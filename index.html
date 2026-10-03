@@ -215,7 +215,7 @@
       <input type="password" id="pinInput" maxlength="12" placeholder="PIN" autocomplete="off">
       <p class="hint" id="pinGateHint" style="margin-bottom:14px;"></p>
       <button class="btn" id="pinEnterBtn">Enter</button>
-      <button class="btn ghost" id="forgotPinBtn" style="margin-top:10px;">Forgot PIN?</button>
+      <button class="btn ghost" id="forgotPinBtn" style="margin-top:10px;">Forgot / change PIN?</button>
     </div>
 
     <div id="dashContent" style="display:none;">
@@ -232,12 +232,11 @@
         </label>
         <p class="hint">If both are switched off, the public form shows a "registration closed" message instead of the form -- useful for fully closing public registration for a period.</p>
         <button class="btn" id="saveEventBtn">Save event details</button>
-        <div class="field" style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <label for="setOrganiserPin">Change organiser PIN</label>
-          <input type="password" id="setOrganiserPin" maxlength="12" placeholder="New PIN (6+ characters)" autocomplete="new-password">
-          <p class="hint">Changing the PIN signs out every other organiser device.</p>
+        <div id="settingsChangeLog" style="margin-top:16px;"></div>
+        <div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <label>Organiser PIN</label>
+          <p class="hint">The PIN can't be changed from here, so no single organiser can lock the others out. To change it, use "Forgot / change PIN?" on the PIN screen -- the code is emailed only to the app owner. A change signs out every organiser device.</p>
         </div>
-        <button class="btn ghost" id="saveOrganiserPinBtn">Update PIN</button>
       </div>
 
       <div class="dash-top">
@@ -390,9 +389,9 @@
 <div class="modal-bg" id="pinResetBg">
   <div class="modal" style="max-width:380px;">
     <button class="modal-close" id="pinResetCloseBtn">x</button>
-    <h2>Reset organiser PIN</h2>
+    <h2>Change organiser PIN</h2>
     <div id="pinResetStep1">
-      <p class="hint">Sends a one-time code to the event's registered email. Valid for 10 minutes.</p>
+      <p class="hint">Sends a one-time code to the app owner's email (only they can complete the change). Valid for 10 minutes. Changing the PIN signs out every organiser device.</p>
       <button class="btn" id="pinResetRequestBtn">Send reset code</button>
     </div>
     <div id="pinResetStep2" style="display:none;">
@@ -1459,21 +1458,25 @@ async function checkPin(){
   }
 }
 
-async function updateOrganiserPin(){
-  const v = document.getElementById('setOrganiserPin').value.trim();
-  if(v.length<6){ toast('New PIN must be at least 6 characters.'); return; }
-  try{
-    const res = await apiCall('setPin', {newPin: v});
-    if(res.token) setSessionToken(res.token); // other devices are signed out; this one gets a fresh session
-    pinIsSet = true;
-    document.getElementById('setOrganiserPin').value = '';
-    toast('Organiser PIN updated -- other organiser devices will need the new PIN.');
-  }catch(err){ toast('Could not update the PIN -- please try again.'); }
-}
-
 function toggleSettings(){
   const el = document.getElementById('eventSettings');
-  el.style.display = el.style.display==='none' ? 'block':'none';
+  const opening = el.style.display==='none';
+  el.style.display = opening ? 'block':'none';
+  // Another organiser may have opened/closed registration since this screen loaded --
+  // reload so the checkboxes and the change log are current before anyone edits them.
+  if(opening) loadEventInfo();
+}
+
+function renderSettingsLog(log){
+  const el = document.getElementById('settingsChangeLog');
+  if(!el) return;
+  if(!log || !log.length){ el.innerHTML = '<p class="hint">No registration changes recorded yet.</p>'; return; }
+  el.innerHTML = '<div class="pf-section-title">Recent registration changes</div>' + log.map(function(h){
+    return '<div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:6px 0;border-bottom:1px dotted var(--line);">' +
+      '<span>'+esc(h.change)+' by '+esc(h.by||'Staff')+'</span>' +
+      '<span class="hint" style="margin:0;white-space:nowrap;">'+fmtDateTime(h.at)+'</span>' +
+    '</div>';
+  }).join('');
 }
 
 async function loadEventInfo(){
@@ -1486,6 +1489,7 @@ async function loadEventInfo(){
       eventInfo.preRegEnabled = res.eventInfo.preRegEnabled;
     }
     pinIsSet = !!res.pinSet;
+    if(res.changeLog) renderSettingsLog(res.changeLog);
   }catch(err){ /* keep current defaults */ }
   document.getElementById('setWalkInEnabled').checked = eventInfo.walkInEnabled !== false;
   document.getElementById('setPreRegEnabled').checked = eventInfo.preRegEnabled !== false;
@@ -1501,20 +1505,46 @@ function refreshEventDisplay(){
   document.getElementById('eventMetaDisplay').textContent = parts.length ? parts.join(' -- ') : 'Set your event details from the Organiser tab';
 }
 
+// Closing anything asks for confirmation first, and every change is recorded on the server
+// with this organiser's name (shown under "Recent registration changes").
 async function saveEventSettings(){
-  eventInfo = {
-    name: FIXED_EVENT_NAME,
-    date: FIXED_EVENT_DATE,
-    location: FIXED_EVENT_LOCATION,
-    walkInEnabled: document.getElementById('setWalkInEnabled').checked,
-    preRegEnabled: document.getElementById('setPreRegEnabled').checked
-  };
+  const walkInBox = document.getElementById('setWalkInEnabled');
+  const preRegBox = document.getElementById('setPreRegEnabled');
+  const walkIn = walkInBox.checked;
+  const preReg = preRegBox.checked;
+  const wasWalkIn = eventInfo.walkInEnabled !== false;
+  const wasPreReg = eventInfo.preRegEnabled !== false;
+  if(walkIn===wasWalkIn && preReg===wasPreReg){ toast('No changes to save.'); return; }
+
+  const closing = [];
+  if(wasWalkIn && !walkIn) closing.push('walk-in');
+  if(wasPreReg && !preReg) closing.push('pre-registration');
+  if(closing.length){
+    const msg = (!walkIn && !preReg)
+      ? 'This will close public registration completely -- donors will see "Registration is currently closed". Continue?'
+      : 'This will stop ' + closing.join(' and ') + ' registration on the public form. Continue?';
+    const ok = await customConfirm(msg);
+    if(!ok){ walkInBox.checked = wasWalkIn; preRegBox.checked = wasPreReg; return; }
+  }
+
+  const btn = document.getElementById('saveEventBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
   try{
-    await apiCall('setEventInfo', {eventInfo: eventInfo});
-    toast('Event details saved.');
+    const res = await apiCall('setEventInfo', {
+      eventInfo: {name: FIXED_EVENT_NAME, date: FIXED_EVENT_DATE, location: FIXED_EVENT_LOCATION, walkInEnabled: walkIn, preRegEnabled: preReg},
+      organiserName: getOrganiserName()
+    });
+    eventInfo.walkInEnabled = walkIn;
+    eventInfo.preRegEnabled = preReg;
+    if(res.changeLog) renderSettingsLog(res.changeLog);
+    toast('Registration settings saved.');
     refreshEventDisplay();
     applyWalkInVisibility(); applyPreRegVisibility();
-  }catch(err){ toast('Could not save event details.'); }
+  }catch(err){
+    walkInBox.checked = wasWalkIn; preRegBox.checked = wasPreReg;
+    toast('Could not save event details.');
+  }
+  btn.disabled = false; btn.textContent = 'Save event details';
 }
 
 // ---------- multi-organiser sync: optional per-device auto-refresh ----------
@@ -2105,7 +2135,6 @@ function initStaticHandlers(){
   document.getElementById('pinInput').addEventListener('keydown', function(e){ if(e.key==='Enter') checkPin(); });
   document.getElementById('settingsToggleBtn').addEventListener('click', toggleSettings);
   document.getElementById('saveEventBtn').addEventListener('click', saveEventSettings);
-  document.getElementById('saveOrganiserPinBtn').addEventListener('click', updateOrganiserPin);
 
   document.getElementById('searchBox').addEventListener('input', renderTable);
   document.getElementById('statusFilter').addEventListener('change', renderTable);
