@@ -96,7 +96,7 @@ Create a Cloudflare Turnstile widget for the production hostname and set `NEXT_P
 
 ## Vercel
 
-Deploys go through GitHub Actions (see **CI/CD** below), not Vercel's Git integration: `vercel.json` sets `"git": {"deploymentEnabled": false}` and `"framework": "nextjs"`. The app is built on the GitHub runner with the pinned pnpm 11 and uploaded with `vercel deploy --prebuilt`, so Vercel never runs an install and no Corepack setting is needed. In the Vercel dashboard, set every variable from `.env.example` for **Production** (and Preview if you use previews), add the production domain under Project Settings > Domains and set `NEXT_PUBLIC_SITE_URL` to it. `vercel.json` sets the function region to `bom1` (Mumbai, next to the database) and a daily cron at 06:00 UTC (09:00 Bahrain) that keeps Supabase awake, retries pending emails and cleans up old rate limit and email rows. Vercel sends `Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set.
+Deploys go through GitHub Actions (see **CI/CD** below), not Vercel's Git integration: `vercel.json` sets `"git": {"deploymentEnabled": false}` and `"framework": "nextjs"`. The app is built on the GitHub runner with the pinned pnpm 11 and uploaded with `vercel deploy --prebuilt`, so Vercel never runs an install and no Corepack setting is needed. In the Vercel dashboard, set every variable from `.env.example`, with exactly the same names, for **Production** (and Preview if you use previews), add the production domain under Project Settings > Domains and set `NEXT_PUBLIC_SITE_URL` to it. `vercel.json` sets the function region to `bom1` (Mumbai, next to the database) and a daily cron at 06:00 UTC (09:00 Bahrain) that keeps Supabase awake, retries pending emails and cleans up old rate limit and email rows. Vercel sends `Authorization: Bearer $CRON_SECRET` automatically when `CRON_SECRET` is set.
 
 **Check that the cron ran.** After the first deploy open Vercel > your project > Settings > Cron Jobs (or Logs, filter by `/api/cron/daily`). Use "Run" once and expect a 200 with `{"ok":true,...}`. A 401 means `CRON_SECRET` is missing or wrong. The cron also keeps the Supabase project from pausing after 7 days of inactivity, so check it again a day after launch.
 
@@ -110,7 +110,7 @@ Two workflows in `.github/workflows/`:
 One-time setup (needs admin on the GitHub repository). Repository **variables** (not secret):
 
 ```bash
-gh variable set SUPABASE_PROJECT_ID --body eoujbdphkfpapfnqssss
+gh variable set SUPABASE_PROJECT_ID --body <project ref from the Supabase dashboard URL>
 gh variable set VERCEL_ORG_ID --body <orgId from .vercel/project.json>
 gh variable set VERCEL_PROJECT_ID --body <projectId from .vercel/project.json>
 ```
@@ -142,7 +142,7 @@ Supabase Free has no downloadable backups. Every week an organiser should open A
 - After signing up, the donor can download their own card from the success page. `/api/signup` returns a signed token (HMAC-SHA256, key derived from `RATE_LIMIT_SALT`, valid for 2 hours) that the page keeps in `sessionStorage` for that tab only and sends in a POST body to `/api/card`, so it never appears in a URL or request log. A missing, altered or expired token gets a 403, and the card has no CPR.
 - Security headers are set in `next.config.ts` (frame-ancestors, nosniff, referrer policy, permissions policy). A strict `script-src` CSP is not set: Next injects inline scripts, so it would need per-request nonces, which is out of scope here.
 - The dashboard, the print pages, the slots page and the CSV export read donors in pages of 1000 (`.range()` loops), because PostgREST silently caps a response at 1000 rows.
-- The rate limit fails open if the database call errors. Turnstile is still enforced in that case.
+- Turnstile is enforced on every signup, independently of the rate limit.
 
 ## Data retention
 
@@ -160,11 +160,11 @@ Tick each box and keep the date you did it.
 - [ ] Hosting terms: Vercel Hobby is for non-commercial use. If the organiser is not a charity or non-commercial, use Cloudflare or Netlify.
 - [ ] **PDPL legal check:** the consent wording, cross-border storage (India or Germany for the database, the US for Vercel and Resend), and the retention period (`RETENTION_MONTHS = 3`, shown in the privacy notice).
 - [ ] **Domain:** buy one or use an organisation subdomain. Add it to the Vercel project (Settings > Domains), set `NEXT_PUBLIC_SITE_URL` to it, add its hostname to the Cloudflare Turnstile widget, and verify the sending domain in Resend (SPF and DKIM).
-- [ ] Vercel environment: every variable from `.env.example`, `CRON_SECRET` and `RATE_LIMIT_SALT` random (32+ characters), the organisation name, contact email and phone variables filled in (they appear in the privacy notice, the email and the PDF), (no Corepack setting is needed: CI builds with the pinned pnpm and deploys prebuilt).
+- [ ] Vercel environment: every variable from `.env.example` **with exactly the same names** (the `NEXT_PUBLIC_` prefix is required where shown, so `SUPABASE_ANON_KEY` or `TURNSTILE_SITE_KEY` without it will not work), `CRON_SECRET` and `RATE_LIMIT_SALT` random (32+ characters), and the organisation name, contact email and phone filled in (they appear in the privacy notice, the email and the PDF). `NEXT_PUBLIC_` values are built into the app, so redeploy after changing them.
 - [ ] Supabase Auth: "Allow new users to sign up" is **off**. Admins are added by hand.
 - [ ] Have an Arabic speaker review the Arabic copy, the English event name and the seed values in the migration.
 - [ ] **Verify the cron ran** after the first deploy: Vercel > Settings > Cron Jobs > Run, or Logs filtered by `/api/cron/daily`; expect 200 (401 means `CRON_SECRET` is missing). Check again a day later. If it silently stops, Supabase pauses the project after 7 days.
-- [ ] **Export the Airtable base to CSV as an archive, then retire the old Apps Script deployment (required).** There is no data migration: the new app starts fresh. The old app's Apps Script URL and staff secret remain in the git history on `main`, so anyone with repository access can still find them: switch the deployment off (Apps Script > Deploy > Manage deployments > archive it) and rotate or delete the staff secret.
+- [ ] **Export the Airtable base to CSV as an archive, then retire the old app (required).** There is no data migration: the new app starts fresh. Archive the old Apps Script deployment (Apps Script > Deploy > Manage deployments), revoke its Airtable token, and switch off GitHub Pages for this repository.
 - [ ] Test with real Gmail and Outlook inboxes (spam folder, PDF rendering, Arabic).
 - [ ] Launch pacing: signups send an email immediately while budget remains (95 per rolling 24 hours). More than that in a day waits for the daily cron, which sends only what the window has freed up, so a large backlog takes several days to clear. Use the admin "Send email" button for urgent ones and watch "Emails pending" on the dashboard.
 - [ ] Do a dry run of the event day: verify, check in, queue numbers, printing, status changes including a **late arrival marked no show** (it can still be checked in), and the CSV export. A deferred donor is deliberately not checked in directly: staff change the status first.
