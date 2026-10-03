@@ -1,0 +1,103 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-paper: #fbf7f2;
+  --color-paper-2: #f3ece3;
+  --color-ink: #241f1c;
+  --color-ink-soft: #6b6259;
+  --color-crimson: #9c1f2e;
+  --color-crimson-dark: #7a1622;
+  --color-blush: #f1dad2;
+  --color-line: #e1d5c6;
+  --color-success: #2f6b4f;
+  --color-flag-bg: #f6d9a6;
+  --color-flag-ink: #7a4a00;
+}
+
+@theme inline {
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #fbf7f2;
+  --foreground: #241f1c;
+  --card: #ffffff;
+  --card-foreground: #241f1c;
+  --popover: #ffffff;
+  --popover-foreground: #241f1c;
+  --primary: #9c1f2e;
+  --primary-foreground: #ffffff;
+  --secondary: #f3ece3;
+  --secondary-foreground: #241f1c;
+  --muted: #f3ece3;
+  --muted-foreground: #6b6259;
+  --accent: #f1dad2;
+  --accent-foreground: #241f1c;
+  --destructive: #b42318;
+  --border: #e1d5c6;
+  --input: #e1d5c6;
+  --ring: #9c1f2e;
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Print pages (A4 staff form) */
+@page {
+  size: A4;
+  margin: 14mm;
+}
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  .print-page {
+    break-after: page;
+  }
+  .print-page:last-child {
+    break-after: auto;
+  }
+}
