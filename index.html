@@ -23,6 +23,7 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;padding-top:34px;font-family:var(--sans);background:var(--paper);color:var(--ink);}
+  body.no-status{padding-top:0;}
   .app{max-width:1000px;margin:0 auto;padding:0 20px 60px;}
   .topbar{display:flex;align-items:center;justify-content:space-between;padding:22px 0 16px;border-bottom:2px solid var(--ink);margin-bottom:24px;}
   .brand{display:flex;align-items:center;gap:10px;}
@@ -177,7 +178,7 @@
     </div>
   </div>
 
-  <p id="jsStatus" style="position:fixed;top:0;left:0;right:0;z-index:999;background:#fff;font-size:12px;color:#a08b78;text-align:center;margin:0;padding:8px 4px;border-bottom:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.08);">Loading...</p>
+  <p id="jsStatus" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#fff;font-size:12px;color:#a08b78;text-align:center;margin:0;padding:8px 4px;border-bottom:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.08);">Loading...</p>
   <div id="view-register" class="view active">
     <div class="hero">
       <p class="event" id="eventNameDisplay">حملة عطاء الزهراء ال 9 للتبرع بالدم</p>
@@ -195,6 +196,7 @@
       <p class="stat">Registration complete / تم التسجيل بنجاح</p>
       <p class="id" id="successId"></p>
       <p class="stat" id="successName"></p>
+      <p class="hint" id="successUploadWarn" style="display:none;color:#7A4A00;margin-top:10px;">Your registration is saved, but the CPR card photo did not upload. Please bring your CPR card on the day. / تم حفظ تسجيلك، لكن لم يتم رفع صورة البطاقة الشخصية. يرجى إحضار البطاقة يوم الحملة.</p>
       <p class="stat" style="margin-top:14px;">Thank you for registering for the Blood Donation Campaign on October 16, 2026 / شكراً لك للتسجيل في حملة التبرع بالدم بتاريخ ١٦ أكتوبر ٢٠٢٦</p>
       <p class="hint" style="font-style:italic;margin-top:10px;font-size:15px;">الزهراء عطاءٌ ممتد</p>
       <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;">
@@ -210,7 +212,7 @@
   <div id="view-dashboard" class="view">
     <div id="pinGate" class="pin-gate">
       <p class="stat" id="pinGateLabel" style="margin-bottom:14px;">Checking...</p>
-      <input type="text" id="pinInput" maxlength="12" placeholder="PIN">
+      <input type="password" id="pinInput" maxlength="12" placeholder="PIN" autocomplete="off">
       <p class="hint" id="pinGateHint" style="margin-bottom:14px;"></p>
       <button class="btn" id="pinEnterBtn">Enter</button>
       <button class="btn ghost" id="forgotPinBtn" style="margin-top:10px;">Forgot PIN?</button>
@@ -231,8 +233,9 @@
         <p class="hint">If both are switched off, the public form shows a "registration closed" message instead of the form -- useful for fully closing public registration for a period.</p>
         <button class="btn" id="saveEventBtn">Save event details</button>
         <div class="field" style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <label>Change organiser PIN</label>
-          <input type="text" id="setOrganiserPin" maxlength="12" placeholder="New PIN (6+ characters)">
+          <label for="setOrganiserPin">Change organiser PIN</label>
+          <input type="password" id="setOrganiserPin" maxlength="12" placeholder="New PIN (6+ characters)" autocomplete="new-password">
+          <p class="hint">Changing the PIN signs out every other organiser device.</p>
         </div>
         <button class="btn ghost" id="saveOrganiserPinBtn">Update PIN</button>
       </div>
@@ -255,7 +258,7 @@
           <p class="stat" id="donorCount">Loading donors...</p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <input type="text" class="search" id="searchBox" placeholder="Search name or CPR...">
+          <input type="text" class="search" id="searchBox" placeholder="Search name, CPR, phone or ID..." aria-label="Search donors">
           <select id="statusFilter" class="filter-select" aria-label="Filter by status">
             <option value="all">All statuses</option>
             <option value="registered">Registered</option>
@@ -286,7 +289,7 @@
         </table>
         <div id="emptyState" class="empty" style="display:none;">No donors registered yet.</div>
       </div>
-      <p class="hint" style="text-align:center;margin-top:20px;">Build: V2 stage 2 -- 2 Oct 2026</p>
+      <p class="hint" style="text-align:center;margin-top:20px;">Build: V2 stage 3 -- 3 Oct 2026</p>
     </div>
   </div>
 </div>
@@ -344,7 +347,7 @@
 <div class="modal-bg" id="adminApprovalBg">
   <div class="modal" style="max-width:380px;">
     <p id="adminApprovalText" style="margin-top:0;"></p>
-    <input type="text" id="adminApprovalPin" placeholder="Organiser PIN" style="margin-bottom:6px;">
+    <input type="password" id="adminApprovalPin" placeholder="Organiser PIN" autocomplete="off" style="margin-bottom:6px;">
     <p class="err" id="adminApprovalErr" style="display:none;">Incorrect PIN.</p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;">
       <button class="btn ghost" id="adminApprovalCancel">Cancel</button>
@@ -359,26 +362,26 @@
     <h2>Edit donor details</h2>
     <p class="hint">Text fields only -- the CPR photo can't be replaced here. Changing the CPR number is re-checked for duplicates.</p>
     <div class="grid2">
-      <div class="field"><label>Full name</label><input type="text" id="edit_fullName"></div>
-      <div class="field"><label>CPR number</label><input type="text" id="edit_cpr" inputmode="numeric" maxlength="9"></div>
+      <div class="field"><label for="edit_fullName">Full name</label><input type="text" id="edit_fullName"></div>
+      <div class="field"><label for="edit_cpr">CPR number</label><input type="text" id="edit_cpr" inputmode="numeric" maxlength="9"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label>Date of birth</label><input type="date" id="edit_dob"></div>
-      <div class="field"><label>Gender</label><select id="edit_gender"><option value="Male">Male</option><option value="Female">Female</option></select></div>
+      <div class="field"><label for="edit_dob">Date of birth</label><input type="date" id="edit_dob"></div>
+      <div class="field"><label for="edit_gender">Gender</label><select id="edit_gender"><option value="Male">Male</option><option value="Female">Female</option></select></div>
     </div>
     <div class="grid2">
-      <div class="field"><label>Mobile number</label><input type="tel" id="edit_phone" inputmode="numeric" maxlength="8"></div>
-      <div class="field"><label>Email</label><input type="email" id="edit_email"></div>
+      <div class="field"><label for="edit_phone">Mobile number</label><input type="tel" id="edit_phone" inputmode="numeric" maxlength="8"></div>
+      <div class="field"><label for="edit_email">Email</label><input type="email" id="edit_email"></div>
     </div>
     <div class="field">
-      <label>Blood type</label>
+      <label for="edit_bloodType">Blood type</label>
       <select id="edit_bloodType">
         <option value="Unknown">Unknown</option>
         <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
         <option>O+</option><option>O-</option><option>AB+</option><option>AB-</option>
       </select>
     </div>
-    <div class="field"><label>Notes</label><textarea id="edit_notes" rows="2"></textarea></div>
+    <div class="field"><label for="edit_notes">Notes</label><textarea id="edit_notes" rows="2"></textarea></div>
     <p class="err" id="editDonorErr" style="display:none;"></p>
     <button class="btn" id="editDonorSaveBtn">Save changes</button>
   </div>
@@ -393,9 +396,9 @@
       <button class="btn" id="pinResetRequestBtn">Send reset code</button>
     </div>
     <div id="pinResetStep2" style="display:none;">
-      <p class="hint">Enter the code from the email, and your new PIN.</p>
-      <input type="text" id="pinResetCode" maxlength="6" inputmode="numeric" placeholder="6-digit code" style="margin-bottom:10px;">
-      <input type="text" id="pinResetNewPin" maxlength="12" placeholder="New PIN (6+ characters)">
+      <p class="hint" id="pinResetStep2Hint">Enter the code from the email, and your new PIN.</p>
+      <input type="text" id="pinResetCode" maxlength="6" inputmode="numeric" placeholder="6-digit code" autocomplete="one-time-code" style="margin-bottom:10px;">
+      <input type="password" id="pinResetNewPin" maxlength="12" placeholder="New PIN (6+ characters)" autocomplete="new-password">
       <button class="btn" id="pinResetConfirmBtn" style="margin-top:10px;">Set new PIN</button>
     </div>
     <p class="err" id="pinResetErr" style="display:none;"></p>
@@ -417,11 +420,14 @@
 <script>
 (function(){
   var statusEl = document.getElementById('jsStatus');
+  // The status bar is a staff/debug aid -- it only shows on the staff link (enabled below,
+  // once the staff-link check has run), so donors never see "Button touched..." messages.
   function setStatus(msg, isError){
     if(!statusEl) return;
     clearTimeout(statusEl._hideTimer);
     statusEl.textContent = msg;
     statusEl.style.color = isError ? '#9C1F2E' : '#a08b78';
+    if(!window._statusBarEnabled){ statusEl.style.display = 'none'; return; }
     statusEl.style.display = 'block';
     if(!isError){
       statusEl._hideTimer = setTimeout(function(){ statusEl.style.display = 'none'; }, 2500);
@@ -448,6 +454,8 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0OIn1AtLcnsKu
 // link is then: <your-site-url>/?staff=<that-word>
 const STAFF_LINK_SECRET = 'tubli2026desk';
 const isStaffLink = new URLSearchParams(window.location.search).get('staff') === STAFF_LINK_SECRET;
+window._statusBarEnabled = isStaffLink;
+if(!isStaffLink) document.body.classList.add('no-status');
 if(!isStaffLink){
   document.addEventListener('DOMContentLoaded', function(){
     // With Organiser already hidden, a lone "Register" button has nothing left to
@@ -457,11 +465,48 @@ if(!isStaffLink){
   });
 }
 
+// ---------- organiser session ----------
+// loginPin / verifyPin hand back a session token; the backend refuses organiser actions
+// (donor list, edits, deletes, status changes, settings) without it. Kept in sessionStorage
+// so a page refresh doesn't force a new PIN entry; it's gone when the tab is closed.
+const SESSION_KEY = 'donorRegistrySession';
+const ORG_NAME_KEY = 'donorRegistryOrgName';
+let sessionToken = null;
+try{ sessionToken = sessionStorage.getItem(SESSION_KEY) || null; }catch(e){}
+
+function setSessionToken(t){
+  sessionToken = t || null;
+  try{
+    if(sessionToken) sessionStorage.setItem(SESSION_KEY, sessionToken);
+    else sessionStorage.removeItem(SESSION_KEY);
+  }catch(e){}
+}
+
+function handleSessionExpired(){
+  const wasAuthed = authed;
+  setSessionToken(null);
+  authed = false;
+  autoRefreshEnabled = false;
+  stopAutoRefresh();
+  const arBtn = document.getElementById('autoRefreshToggle');
+  arBtn.textContent = 'Auto-refresh: Off';
+  arBtn.classList.remove('sel');
+  document.getElementById('dashContent').style.display = 'none';
+  document.getElementById('pinGate').style.display = '';
+  document.getElementById('pinInput').value = '';
+  updatePinGateUI();
+  if(wasAuthed){
+    toast('Organiser session expired -- please enter the PIN again.', true);
+    toastHoldUntil = Date.now() + 3500; // keep this message from being replaced by the failed call's own toast
+  }
+}
+
 async function apiCall(action, payload){
   if(!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') !== -1){
     throw new Error('backend-not-configured');
   }
   const body = Object.assign({action:action}, payload || {});
+  if(sessionToken) body.token = sessionToken;
   // Occasionally Apps Script's own platform returns an HTML error page (its routing layer
   // intercepted the request) instead of ever running doPost -- this is a known, documented
   // characteristic of Apps Script Web Apps, not something our code or deployment settings
@@ -491,7 +536,11 @@ async function apiCall(action, payload){
       if(attempt<2){ await new Promise(function(r){ setTimeout(r, 400 + attempt*400); }); continue; }
       throw lastErr;
     }
-    if(data && data.error) throw new Error(data.error);
+    if(data && data.error){
+      const apiErr = new Error(data.error);
+      if(data.code === 'AUTH'){ apiErr.authExpired = true; handleSessionExpired(); }
+      throw apiErr;
+    }
     return data;
   }
   throw lastErr;
@@ -510,6 +559,7 @@ async function apiCallReadRetry(action, payload, retries, delays){
     try{
       return await apiCall(action, payload);
     }catch(err){
+      if(err && err.authExpired) throw err; // retrying won't fix an expired session
       lastErr = err;
       if(attempt<retries) await new Promise(function(r){ setTimeout(r, delays[attempt] || 1800); });
     }
@@ -533,7 +583,9 @@ let viewingId = null;
 let pinIsSet = null; // null = not loaded yet, true/false once known
 
 // ---------- helpers ----------
-function toast(msg){
+let toastHoldUntil = 0;
+function toast(msg, force){
+  if(!force && Date.now() < toastHoldUntil) return;
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
@@ -544,9 +596,9 @@ function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;',
 function cprAttachmentHTML(d){
   if(!d.cprImageUrl) return '';
   if(d.cprImageType === 'application/pdf'){
-    return '<div class="pf-photo"><a href="'+d.cprImageUrl+'" target="_blank" rel="noopener">View CPR card PDF / عرض ملف PDF</a></div>';
+    return '<div class="pf-photo"><a href="'+esc(d.cprImageUrl)+'" target="_blank" rel="noopener">View CPR card PDF / عرض ملف PDF</a></div>';
   }
-  return '<div class="pf-photo"><img src="'+d.cprImageUrl+'"></div>';
+  return '<div class="pf-photo"><img src="'+esc(d.cprImageUrl)+'" alt="CPR card"></div>';
 }
 function fmtDate(iso){
   if(!iso) return String.fromCharCode(8212);
@@ -605,6 +657,7 @@ function requestAdminApproval(message){
       try{
         const res = await apiCall('verifyPin', {pin: v});
         if(res.success){
+          if(res.token) setSessionToken(res.token);
           cleanup(true);
         } else if(res.error){
           errEl.textContent = res.error;
@@ -636,7 +689,10 @@ function switchView(v){
   document.getElementById('navRegister').classList.toggle('active', v==='register');
   document.getElementById('navDash').classList.toggle('active', v==='dashboard');
   if(v==='dashboard' && authed) loadDonors();
-  if(v==='dashboard' && !authed) ensurePinLoaded();
+  if(v==='dashboard' && !authed){
+    if(sessionToken) enterDashboard(); // still signed in from earlier in this tab -- the backend rejects it if expired
+    else ensurePinLoaded();
+  }
 }
 
 // ---------- image compression ----------
@@ -675,7 +731,9 @@ function timeSlotOptionsHTML(){
       slots.push(hour12 + ':' + (m===0?'00':m) + ' ' + ampm);
     }
   }
-  return slots.map(function(s){ return '<option value="'+s+'">'+s+'</option>'; }).join('');
+  // Blank first option: without it every pre-registration silently defaulted to 8:30 AM.
+  return '<option value="">Choose a time / اختر الوقت</option>' +
+    slots.map(function(s){ return '<option value="'+s+'">'+s+'</option>'; }).join('');
 }
 
 const SAVE_LABEL = 'Save registration / حفظ التسجيل';
@@ -702,26 +760,27 @@ function formHTML(p){
       '</div>',
     '</div>',
     '<div class="field" id="'+p+'_prefdate_field">',
-      '<label>Preferred time / الوقت المفضل</label>',
+      '<label for="'+p+'_prefdate">Preferred time / الوقت المفضل *</label>',
       '<select id="'+p+'_prefdate">'+timeOptions+'</select>',
+      '<p class="err">Please choose a preferred time. / يرجى اختيار الوقت المفضل.</p>',
       '<p class="hint">All times are for October 16, 2026. / جميع الأوقات ليوم 16 أكتوبر 2026.</p>',
     '</div>',
 
     '<div class="grid2">',
       '<div class="field" id="'+p+'_name_field">',
-        '<label>Full name / الاسم الكامل *</label>',
-        '<input type="text" id="'+p+'_name">',
+        '<label for="'+p+'_name">Full name / الاسم الكامل *</label>',
+        '<input type="text" id="'+p+'_name" maxlength="100" autocomplete="name">',
         '<p class="err">Please enter the donor\'s full name. / يرجى إدخال الاسم الكامل.</p>',
       '</div>',
       '<div class="field" id="'+p+'_cpr_field">',
-        '<label>CPR number / الرقم الشخصي *</label>',
+        '<label for="'+p+'_cpr">CPR number / الرقم الشخصي *</label>',
         '<input type="text" id="'+p+'_cpr" inputmode="numeric" maxlength="9" placeholder="9 digits">',
         '<p class="err">CPR number must be exactly 9 digits. / يجب أن يتكون الرقم الشخصي من 9 أرقام.</p>',
       '</div>',
     '</div>',
 
     '<div class="field" id="'+p+'_dob_field">',
-      '<label>Date of birth / تاريخ الميلاد *</label>',
+      '<label for="'+p+'_dob">Date of birth / تاريخ الميلاد *</label>',
       '<input type="date" id="'+p+'_dob" max="2008-10-16">',
       '<p class="err">Please enter date of birth. / يرجى إدخال تاريخ الميلاد.</p>',
       '<p class="hint" id="'+p+'_age_display"></p>',
@@ -729,18 +788,18 @@ function formHTML(p){
 
     '<div class="grid2">',
       '<div class="field" id="'+p+'_phone_field">',
-        '<label>Mobile number / رقم الهاتف *</label>',
+        '<label for="'+p+'_phone">Mobile number / رقم الهاتف *</label>',
         '<input type="tel" id="'+p+'_phone" inputmode="numeric" maxlength="8" placeholder="8 digits">',
         '<p class="err">Mobile number must be exactly 8 digits. / يجب أن يتكون رقم الهاتف من 8 أرقام.</p>',
       '</div>',
       '<div class="field">',
-        '<label>Email (optional) / البريد الإلكتروني (اختياري)</label>',
-        '<input type="email" id="'+p+'_email">',
+        '<label for="'+p+'_email">Email (optional) / البريد الإلكتروني (اختياري)</label>',
+        '<input type="email" id="'+p+'_email" maxlength="120" autocomplete="email">',
       '</div>',
     '</div>',
 
     '<div class="field">',
-      '<label>Blood type (if known) / فصيلة الدم (إن وجدت)</label>',
+      '<label for="'+p+'_bloodtype">Blood type (if known) / فصيلة الدم (إن وجدت)</label>',
       '<select id="'+p+'_bloodtype">',
         '<option value="Unknown">Unknown / غير معروفة</option>',
         '<option>A+</option><option>A-</option><option>B+</option><option>B-</option>',
@@ -803,20 +862,19 @@ function autoAdvance(fromId, toId){
 }
 
 function wireForm(p){
-  // Guards against one physical tap firing twice (touchend + click). It is cleared as soon as a
-  // save finishes (see resetSaveButtons), so "tap Save again" works immediately after a failure.
+  // Guards against a double tap firing two saves. It is cleared as soon as a save finishes
+  // (see resetSaveButtons), so "tap Save again" works immediately after a failure.
+  // Only 'click' is used: a separate touchend handler also fired when a finger that merely
+  // scrolled the page happened to lift off over the button, saving the form by accident.
   window['_saveFiring_'+p] = false;
   function bindSave(btn, printAfter){
     if(!btn) return;
-    function trigger(e){
+    btn.addEventListener('click', function(e){
       if(window['_saveFiring_'+p]) return;
       window['_saveFiring_'+p] = true;
       setTimeout(function(){ window['_saveFiring_'+p] = false; }, 1000);
       submitDonor(e, p, printAfter);
-    }
-    btn.addEventListener('pointerdown', function(){ window._setStatus('Button touched -- processing tap...'); });
-    btn.addEventListener('click', trigger);
-    btn.addEventListener('touchend', function(e){ e.preventDefault(); trigger(e); });
+    });
   }
   bindSave(document.getElementById(p+'_submit_btn'), false);
   bindSave(document.getElementById(p+'_submitprint_btn'), true);
@@ -921,10 +979,17 @@ function readFileAsDataURL(file){
   });
 }
 
+const MAX_PDF_BYTES = 4.5 * 1024 * 1024; // the backend/Airtable limit is 5 MB; leave headroom
+
 function handleImage(e,p){
   const file = e.target.files[0];
   if(!file) return;
   const isPdf = file.type === 'application/pdf';
+  if(isPdf && file.size > MAX_PDF_BYTES){
+    e.target.value = '';
+    toast('That PDF is too large (max 4.5 MB). Please take a photo of the card instead. / الملف كبير جداً، يرجى التقاط صورة للبطاقة بدلاً منه.');
+    return;
+  }
   const handler = isPdf ? readFileAsDataURL(file) : compressImage(file);
   handler.then(function(dataUrl){
     window['_img_'+p] = dataUrl;
@@ -945,6 +1010,7 @@ function clearInvalid(p){
   ['name','cpr','dob','phone'].forEach(function(f){
     document.getElementById(p+'_'+f+'_field').classList.remove('invalid');
   });
+  document.getElementById(p+'_prefdate_field').classList.remove('invalid');
   document.getElementById(p+'_img_err').style.display = 'none';
   document.getElementById(p+'_consent_err').style.display = 'none';
 }
@@ -965,6 +1031,7 @@ function validateForm(p){
   const img = window['_img_'+p];
   const consent = document.getElementById(p+'_consent').checked;
 
+  if((window['_regtype_'+p] || 'pre')==='pre' && !document.getElementById(p+'_prefdate').value) mark(p+'_prefdate_field','preferred time');
   if(!name) mark(p+'_name_field','full name');
   if(!/^\d{9}$/.test(cpr)) mark(p+'_cpr_field','CPR number (exactly 9 digits)');
   if(!dob) mark(p+'_dob_field','date of birth');
@@ -1093,6 +1160,7 @@ async function submitDonorInner(p, printAfter){
   const flagged = flagReasons.length > 0;
   const flagReason = flagReasons.join('; ');
   const nowIso = new Date().toISOString();
+  const regType = window['_regtype_'+p] || 'pre';
 
   const donor = {
     id: genId(),
@@ -1104,8 +1172,10 @@ async function submitDonorInner(p, printAfter){
     email: document.getElementById(p+'_email').value.trim(),
     bloodType: document.getElementById(p+'_bloodtype').value,
     notes: fieldVal(p+'_notes', ''),
-    regType: window['_regtype_'+p] || 'pre',
-    preferredDate: document.getElementById(p+'_prefdate') ? document.getElementById(p+'_prefdate').value : '',
+    regType: regType,
+    // The time dropdown still exists (just hidden) for walk-ins -- only read it for pre-registrations,
+    // otherwise every walk-in was saved with the dropdown's first time.
+    preferredDate: regType==='pre' ? document.getElementById(p+'_prefdate').value : '',
     cprImage: window['_img_'+p] || null,
     eligibility: eligibility,
     flagged: flagged,
@@ -1124,7 +1194,7 @@ async function submitDonorInner(p, printAfter){
   // find that donor as a "duplicate" (of themselves) rather than ever creating a second record.
   let res;
   try{
-    res = await apiCall('registerDonor', {donor: donor});
+    res = await apiCall('registerDonor', {donor: donor, organiserName: p==='add' ? getOrganiserName() : ''});
   }catch(err){
     const diag = document.getElementById('storageDiag');
     diag.textContent = 'Save error: ' + (err && err.message ? err.message : String(err));
@@ -1144,18 +1214,29 @@ async function submitDonorInner(p, printAfter){
       toast('This CPR is already registered. Please see the event desk. / هذا الرقم مسجل بالفعل، يرجى التوجه إلى مكتب التسجيل.');
       return false;
     }
-    await ensurePinLoaded();
-    if(!pinIsSet){
-      toast('This CPR is already registered. An organiser must set a PIN (Organiser tab) before this can be reviewed.');
-      resetSaveButtons(p); endSaveFeedback(p, false); return false;
-    }
-    const reviewed = await requestAdminApproval('This CPR number is already registered for '+res.donor.fullName+' (on '+fmtDate(res.donor.createdAt)+'). Enter the organiser PIN to review this donor.');
+    // The backend only includes the existing donor's details for a signed-in organiser.
+    let dupDonor = res.donor || null;
     resetSaveButtons(p); endSaveFeedback(p, false);
-    if(reviewed){
-      upsertDonorIntoCache(res.donor);
-      if(p==='add') closeAddModal();
-      viewDonor(res.donor.id);
+    if(dupDonor){
+      const open = await customConfirm('This CPR number is already registered for '+dupDonor.fullName+' (on '+fmtDate(dupDonor.createdAt)+'). Open their record?');
+      if(!open) return false;
+    } else {
+      await ensurePinLoaded();
+      if(!pinIsSet){
+        toast('This CPR is already registered. An organiser must set a PIN (Organiser tab) before this can be reviewed.');
+        return false;
+      }
+      const reviewed = await requestAdminApproval('This CPR number is already registered. Enter the organiser PIN to review the existing donor.');
+      if(!reviewed) return false;
+      try{
+        const r2 = await apiCall('checkDuplicateCpr', {cpr: cpr}); // now signed in, so this returns the details
+        dupDonor = r2.donor || null;
+      }catch(err){ /* handled just below */ }
+      if(!dupDonor){ toast('Could not load the existing donor -- try again from the Organiser tab.'); return false; }
     }
+    upsertDonorIntoCache(dupDonor);
+    if(p==='add') closeAddModal();
+    viewDonor(dupDonor.id);
     return false; // a duplicate CPR never creates a new record -- reviewing the existing one instead
   }
 
@@ -1163,6 +1244,9 @@ async function submitDonorInner(p, printAfter){
   donor.cprImageType = res.cprImageType || '';
   donor.cprImage = null;
   if(res.id) donor.id = res.id; // adopt Airtable's own record ID for future status/delete calls
+  // The server sets the authoritative created-at time (not this device's clock) and flags.
+  if(res.createdAt){ donor.createdAt = res.createdAt; donor.statusHistory = [{status:'Registered', at: res.createdAt}]; }
+  if(res.flagged !== undefined){ donor.flagged = !!res.flagged; donor.flagReason = res.flagReason || ''; }
 
   lastRegisteredId = donor.id;
   lastRegisteredDonor = donor;
@@ -1174,9 +1258,10 @@ async function submitDonorInner(p, printAfter){
     document.getElementById('registerSuccess').style.display='block';
     document.getElementById('successId').textContent = '#'+shortId(donor.id);
     document.getElementById('successName').textContent = donor.fullName+' -- registration saved';
+    document.getElementById('successUploadWarn').style.display = res.uploadFailed ? 'block' : 'none';
   } else {
     closeAddModal();
-    toast('Donor added.');
+    toast(res.uploadFailed ? 'Donor added, but the CPR photo did not upload -- check their card at the desk.' : 'Donor added.');
     if(printAfter){
       // the just-saved donor isn't in the dashboard list yet -- add it so the print preview can find it
       upsertDonorIntoCache(donor);
@@ -1232,7 +1317,9 @@ function updatePinGateUI(){
   }
 }
 
-let organiserName = ''; // kept in memory only, per this page load -- not persisted or sent anywhere except tagged onto this session's edits
+// Kept for this browser tab only (sessionStorage) -- not sent anywhere except tagged onto this session's edits
+let organiserName = '';
+try{ organiserName = sessionStorage.getItem(ORG_NAME_KEY) || ''; }catch(e){}
 function getOrganiserName(){ return organiserName || 'Staff'; }
 
 function promptOrganiserName(){
@@ -1245,6 +1332,7 @@ function promptOrganiserName(){
     setTimeout(function(){ input.focus(); }, 50);
     function finish(name){
       organiserName = name;
+      try{ if(name) sessionStorage.setItem(ORG_NAME_KEY, name); }catch(e){}
       bg.classList.remove('active');
       okBtn.onclick = null; skipBtn.onclick = null; input.onkeydown = null;
       resolve(organiserName);
@@ -1284,7 +1372,10 @@ async function requestPinResetAction(){
   errEl.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Sending...';
   try{
-    await apiCall('requestPinReset');
+    const res = await apiCall('requestPinReset');
+    document.getElementById('pinResetStep2Hint').textContent = res.alreadySent
+      ? 'A code was already sent in the last 2 minutes -- use the code from that email, and your new PIN.'
+      : 'Enter the code from the email, and your new PIN.';
     document.getElementById('pinResetStep1').style.display = 'none';
     document.getElementById('pinResetStep2').style.display = 'block';
   }catch(err){
@@ -1306,6 +1397,7 @@ async function confirmPinResetAction(){
   try{
     await apiCall('confirmPinReset', {code: code, newPin: newPin});
     closePinResetModal();
+    setSessionToken(null); // a reset signs out every device, this one included
     pinIsSet = true;
     toast('PIN reset -- log in with your new PIN.');
     document.getElementById('pinInput').value = '';
@@ -1325,6 +1417,7 @@ async function checkPin(){
     if(res.error){ toast(res.error); return; }
     if(res.success){
       pinIsSet = true;
+      setSessionToken(res.token);
       if(res.firstSetup) toast('Organiser PIN set.');
       enterDashboard();
     } else {
@@ -1339,10 +1432,11 @@ async function updateOrganiserPin(){
   const v = document.getElementById('setOrganiserPin').value.trim();
   if(v.length<6){ toast('New PIN must be at least 6 characters.'); return; }
   try{
-    await apiCall('setPin', {newPin: v});
+    const res = await apiCall('setPin', {newPin: v});
+    if(res.token) setSessionToken(res.token); // other devices are signed out; this one gets a fresh session
     pinIsSet = true;
     document.getElementById('setOrganiserPin').value = '';
-    toast('Organiser PIN updated.');
+    toast('Organiser PIN updated -- other organiser devices will need the new PIN.');
   }catch(err){ toast('Could not update the PIN -- please try again.'); }
 }
 
@@ -1447,13 +1541,25 @@ async function loadDonors(){
     allDonors.sort(function(a,b){ return new Date(a.createdAt) - new Date(b.createdAt); });
     allDonors.forEach(function(d,i){ d._seq = i+1; });
     allDonors.reverse();
+    donorsLoadedAt = Date.now();
   }catch(err){
+    if(err && err.authExpired) return; // the PIN screen is already showing
     toast('Could not load donors.');
     allDonors = [];
   }
   updateLastUpdatedDisplay();
   renderTable();
   updateStatsRow();
+}
+
+// Airtable's CPR photo links stop working a couple of hours after they're fetched. Before
+// viewing or printing, reload the list if it's old enough that the links may have expired.
+let donorsLoadedAt = 0;
+const PHOTO_LINK_MAX_AGE_MS = 90 * 60 * 1000;
+async function refreshDonorsIfStale(){
+  if(!authed || !donorsLoadedAt || Date.now() - donorsLoadedAt < PHOTO_LINK_MAX_AGE_MS) return;
+  toast('Refreshing the donor list so photos load...');
+  await loadDonors();
 }
 
 function updateStatsRow(){
@@ -1476,7 +1582,7 @@ function updateStatsRow(){
 
 function statusSelectHTML(d){
   const opts = ['registered','verified','waiting','screening','donated','deferred'];
-  return '<select class="status-select" data-action="status" data-id="'+d.id+'">' +
+  return '<select class="status-select" data-action="status" data-id="'+esc(d.id)+'" aria-label="Status for '+esc(d.fullName)+'">' +
     opts.map(function(o){ return '<option value="'+o+'"'+(d.status===o?' selected':'')+'>'+STATUS_LABELS[o]+'</option>'; }).join('') +
     '</select>';
 }
@@ -1493,15 +1599,23 @@ async function updateDonorStatus(id, newStatus){
     const ok = await customConfirm('Mark ' + d.fullName + ' as Donated? This confirms blood was actually collected.');
     if(!ok){ renderTable(); return; } // renderTable resets the dropdown back to its real value
   }
+  // Moving to Waiting from here checks the donor in and assigns a queue number (same as printing).
+  if(newStatus === 'waiting' && prevStatus === 'registered'){
+    const ok = await customConfirm(d.fullName + ' has not been verified yet. Verify and check them in (assigns a queue number)?');
+    if(!ok){ renderTable(); return; }
+  }
   d.status = newStatus; // optimistic UI update; reverted below on failure
   try{
     const res = await apiCall('updateStatus', {id: id, status: newStatus, organiserName: getOrganiserName()});
     if(res.statusHistory) d.statusHistory = res.statusHistory;
+    if(res.queueNumber) d.queueNumber = res.queueNumber;
+    const queueNote = (newStatus === 'waiting' && res.queueNumber) ? ' -- queue #' + res.queueNumber : '';
     if(res.previousStatus && res.previousStatus.toLowerCase() !== prevStatus){
-      toast(d.fullName + ': someone else had already changed this to "' + res.previousStatus + '" -- it is now "' + STATUS_LABELS[newStatus] + '".');
+      toast(d.fullName + ': someone else had already changed this to "' + res.previousStatus + '" -- it is now "' + STATUS_LABELS[newStatus] + '"' + queueNote + '.');
     } else {
-      toast(d.fullName + ' marked as ' + STATUS_LABELS[newStatus] + '.');
+      toast(d.fullName + ' marked as ' + STATUS_LABELS[newStatus] + queueNote + '.');
     }
+    renderTable();
     updateStatsRow();
     if(viewingId===id && document.getElementById('viewModalBg').classList.contains('active')) viewDonor(id);
   }catch(err){
@@ -1525,21 +1639,25 @@ function parseTimeSlotMinutes(s){
   return h*60+min;
 }
 
+// Walk-ins saved before stage 3 have a stray "8:30 AM" stored -- ignore it everywhere.
+function preferredTimeOf(d){ return d.regType==='pre' ? (d.preferredDate||'') : ''; }
+
 function getFilteredDonors(){
   const q = (document.getElementById('searchBox').value||'').toLowerCase();
   const sf = document.getElementById('statusFilter').value;
   const sortByEl = document.getElementById('sortBy');
   const sortBy = sortByEl ? sortByEl.value : 'default';
   let rows = allDonors.filter(function(d){
-    if(q && !(d.fullName.toLowerCase().includes(q) || d.cpr.includes(q))) return false;
+    if(q && !(d.fullName.toLowerCase().includes(q) || d.cpr.includes(q) || (d.phone||'').includes(q) ||
+      shortId(d.id).toLowerCase().includes(q.replace(/^#/,'')))) return false;
     if(sf==='flagged') return !!d.flagged;
     if(sf!=='all' && d.status!==sf) return false;
     return true;
   });
   if(sortBy==='preferredTime'){
     rows = rows.slice().sort(function(a,b){
-      const ta = parseTimeSlotMinutes(a.preferredDate);
-      const tb = parseTimeSlotMinutes(b.preferredDate);
+      const ta = parseTimeSlotMinutes(preferredTimeOf(a));
+      const tb = parseTimeSlotMinutes(preferredTimeOf(b));
       if(ta===null && tb===null) return a._seq-b._seq; // neither has a time -> keep registration order
       if(ta===null) return 1;  // no preferred time (e.g. walk-ins) sorts to the end
       if(tb===null) return -1;
@@ -1569,18 +1687,18 @@ function renderTable(){
   document.getElementById('emptyState').style.display='none';
   tbody.innerHTML = rows.map(function(d){
     return '<tr>' +
-      '<td>'+d._seq+'</td>' +
+      '<td>'+d._seq+(d.queueNumber?'<div class="hint" style="margin:0;font-size:12px;white-space:nowrap;">Queue '+esc(d.queueNumber)+'</div>':'')+'</td>' +
       '<td>'+esc(d.fullName)+'</td>' +
       '<td>'+esc(d.cpr)+'</td>' +
       '<td><span class="pill '+(d.regType==='pre'?'pre':'walkin')+'">'+(d.regType==='pre'?'Pre-reg':'Walk-in')+'</span></td>' +
-      '<td>'+(d.preferredDate?esc(d.preferredDate):String.fromCharCode(8212))+'</td>' +
+      '<td>'+(preferredTimeOf(d)?esc(preferredTimeOf(d)):String.fromCharCode(8212))+'</td>' +
       '<td>'+esc(d.phone)+'</td>' +
       '<td>'+fmtDate(d.createdAt)+'</td>' +
       '<td>'+(d.flagged?'<span class="pill flag" style="white-space:normal;">'+esc(d.flagReason||'Review')+'</span>':String.fromCharCode(8212))+'</td>' +
       '<td>' + statusSelectHTML(d) + '</td>' +
       '<td class="row-actions">' +
-        '<button class="btn ghost" data-action="view" data-id="'+d.id+'">View</button>' +
-        '<button class="btn ghost" data-action="print" data-id="'+d.id+'">Print</button>' +
+        '<button class="btn ghost" data-action="view" data-id="'+esc(d.id)+'">View</button>' +
+        '<button class="btn ghost" data-action="print" data-id="'+esc(d.id)+'">Print</button>' +
       '</td>' +
     '</tr>';
   }).join('');
@@ -1588,24 +1706,31 @@ function renderTable(){
 
 function exportCSV(){
   if(allDonors.length===0){ toast('No donors to export.'); return; }
-  const headers = ['#','Full name','CPR','DOB','Gender','Phone','Email','Blood type','Registration type','Status','Preferred date','Registered on','Needs review','Feeling well','Recent donation','Recent procedure','Recent travel','On medication','Notes'];
+  const headers = ['#','Donor ID','Queue number','Full name','CPR','DOB','Gender','Phone','Email','Blood type','Registration type','Status','Preferred time','Registered on','Needs review','Flag reason','Feeling well','Recent donation','Recent procedure','Recent travel','On medication','Notes'];
   const rows = allDonors.slice().sort(function(a,b){ return a._seq-b._seq; }).map(function(d){
     return [
-      d._seq, d.fullName, d.cpr, d.dob, d.gender, d.phone, d.email, d.bloodType,
-      d.regType==='pre'?'Pre-registration':'Walk-in', d.status||'registered', d.preferredDate||'', fmtDate(d.createdAt),
-      d.flagged?'Yes':'No',
+      d._seq, shortId(d.id), d.queueNumber||'', d.fullName, d.cpr, d.dob, d.gender, d.phone, d.email, d.bloodType,
+      d.regType==='pre'?'Pre-registration':'Walk-in', STATUS_LABELS[d.status]||d.status||'Registered', preferredTimeOf(d), fmtDate(d.createdAt),
+      d.flagged?'Yes':'No', d.flagReason||'',
       d.eligibility?d.eligibility.feelWell:'', d.eligibility?d.eligibility.recentDonation:'',
       d.eligibility?d.eligibility.recentProcedure:'', d.eligibility?d.eligibility.recentTravel:'',
       d.eligibility?d.eligibility.onMedication:'', d.notes||''
     ];
   });
-  const csvEsc = function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
-  const csv = [headers.map(csvEsc).join(',')].concat(rows.map(function(r){ return r.map(csvEsc).join(','); })).join('\n');
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  // A leading = + - @ would make Excel run the cell as a formula (names come from the public
+  // form), so those get a leading apostrophe, which Excel shows as plain text.
+  const csvEsc = function(v){
+    let s = String(v==null?'':v);
+    if(/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return '"'+s.replace(/"/g,'""')+'"';
+  };
+  const csv = [headers.map(csvEsc).join(',')].concat(rows.map(function(r){ return r.map(csvEsc).join(','); })).join('\r\n');
+  // The BOM tells Excel the file is UTF-8 -- without it Arabic names open as garbled characters.
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = (eventInfo.name||'donors').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-donors.csv';
+  a.download = 'donors-' + FIXED_EVENT_DATE + '.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
@@ -1635,8 +1760,8 @@ function viewDonor(id){
       '<div><b>Blood type</b>'+esc(d.bloodType)+'</div>' +
       '<div><b>Registration type</b>'+(d.regType==='pre'?'Pre-registration':'Walk-in')+'</div>' +
       '<div><b>Status</b>'+(STATUS_LABELS[d.status]||'Registered')+'</div>' +
-      (d.queueNumber?'<div><b>Queue number</b>#'+d.queueNumber+'</div>':'') +
-      (d.preferredDate?'<div><b>Preferred time</b>'+esc(d.preferredDate)+'</div>':'') +
+      (d.queueNumber?'<div><b>Queue number</b>#'+esc(d.queueNumber)+'</div>':'') +
+      (preferredTimeOf(d)?'<div><b>Preferred time</b>'+esc(preferredTimeOf(d))+'</div>':'') +
       '<div><b>Registered on</b>'+fmtDate(d.createdAt)+'</div>' +
     '</div>' +
     (d.status==='registered'?'<button class="btn secondary" id="viewModalVerifyBtn" style="margin-top:10px;">Verify (CPR photo matches details)</button>':'') +
@@ -1655,7 +1780,7 @@ function viewDonor(id){
       '<div class="pf-section-title" style="margin-top:16px;">Status history</div>' +
       '<div>' + d.statusHistory.slice().reverse().map(function(h){
         return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dotted var(--line);">' +
-          '<span>'+(STATUS_LABELS[(h.status||'').toLowerCase()]||h.status)+(h.by?' by '+esc(h.by):'')+(h.edited?' (details edited)':'')+'</span>' +
+          '<span>'+esc(STATUS_LABELS[String(h.status||'').toLowerCase()]||h.status)+(h.by?' by '+esc(h.by):'')+(h.edited?' (details edited)':'')+'</span>' +
           '<span class="hint" style="margin:0;">'+fmtDateTime(h.at)+'</span>' +
         '</div>';
       }).join('') + '</div>'
@@ -1807,7 +1932,7 @@ function buildPfHTML(d){
           'Donor ID' +
           '<b>#'+shortId(d.id)+'</b>' +
           (d.regType==='pre'?'Pre-registered':'Walk-in') +
-          (d.queueNumber?'<div style="font-size:20px;font-weight:800;color:#9C1F2E;margin-top:4px;">Queue #'+d.queueNumber+'</div>':'') +
+          (d.queueNumber?'<div style="font-size:20px;font-weight:800;color:#9C1F2E;margin-top:4px;">Queue #'+esc(d.queueNumber)+'</div>':'') +
         '</div>' +
       '</div>' +
       (d.flagged?'<div class="pf-flag-banner">Flagged for medical review: '+esc(d.flagReason||'see notes')+'</div>':'') +
@@ -1891,6 +2016,7 @@ async function maybeCheckInBeforePrint(){
     } else if(res.success){
       d.status = 'waiting';
       d.queueNumber = res.queueNumber;
+      if(res.statusHistory) d.statusHistory = res.statusHistory;
       toast(d.fullName + ' checked in' + (res.queueNumber ? ' -- queue #' + res.queueNumber : '') + '.');
       // refresh the preview so the printed copy actually shows the new queue number
       const previewBody = document.getElementById('printPreviewBody');
@@ -1954,7 +2080,7 @@ function initStaticHandlers(){
   document.getElementById('statusFilter').addEventListener('change', renderTable);
   document.getElementById('sortBy').addEventListener('change', renderTable);
   document.getElementById('addDonorBtn').addEventListener('click', openAddModal);
-  document.getElementById('printAllBtn').addEventListener('click', printAllDonors);
+  document.getElementById('printAllBtn').addEventListener('click', async function(){ await refreshDonorsIfStale(); printAllDonors(); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
   document.getElementById('refreshBtn').addEventListener('click', loadDonors);
   document.getElementById('autoRefreshToggle').addEventListener('click', toggleAutoRefresh);
@@ -1971,10 +2097,11 @@ function initStaticHandlers(){
   document.getElementById('printPreviewPrintBtn').addEventListener('click', doPrintNow);
   document.getElementById('printPreviewDownloadBtn').addEventListener('click', downloadPrintForm);
 
-  document.getElementById('donorTbody').addEventListener('click', function(e){
+  document.getElementById('donorTbody').addEventListener('click', async function(e){
     const btn = e.target.closest('button[data-action]');
     if(!btn) return;
     const id = btn.getAttribute('data-id');
+    await refreshDonorsIfStale();
     if(btn.getAttribute('data-action')==='view') viewDonor(id);
     if(btn.getAttribute('data-action')==='print') printDonorById(id, true);
   });
