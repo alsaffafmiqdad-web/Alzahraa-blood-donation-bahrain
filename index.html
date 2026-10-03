@@ -1162,7 +1162,7 @@ async function submitDonorInner(p, printAfter){
   const nowIso = new Date().toISOString();
   const regType = window['_regtype_'+p] || 'pre';
 
-  const donor = {
+  let donor = {
     id: genId(),
     fullName: document.getElementById(p+'_name').value.trim(),
     cpr: cpr,
@@ -1185,24 +1185,53 @@ async function submitDonorInner(p, printAfter){
     createdAt: nowIso
   };
 
-  // One combined backend call does the duplicate check AND the create in a single execution --
-  // this removes a full network round trip for the common (non-duplicate) case, which used to
-  // be two separate client-initiated calls. This call is a write (not auto-retried like a pure
-  // read): if it fails at the network level, we can't tell whether it actually completed on the
-  // server before the response was lost. Retrying is still safe, though -- the SAME duplicate
-  // check runs again on every retry, so if the first attempt secretly succeeded, retrying will
-  // find that donor as a "duplicate" (of themselves) rather than ever creating a second record.
+  // One combined backend call does the duplicate check AND the create in a single execution.
+  // It is safe to repeat: the server re-checks the CPR under a lock on every call, so a repeat
+  // after an attempt that secretly succeeded comes back as a duplicate, never a second record.
+  // So when the connection drops with no reply at all ("Failed to fetch" -- Apps Script has
+  // short slow/failed spells), the save is retried automatically, and a duplicate whose name and
+  // phone match what was just submitted is recognised as this same registration, i.e. saved.
   let res;
-  try{
-    res = await apiCall('registerDonor', {donor: donor, organiserName: p==='add' ? getOrganiserName() : ''});
-  }catch(err){
-    const diag = document.getElementById('storageDiag');
-    diag.textContent = 'Save error: ' + (err && err.message ? err.message : String(err));
-    diag.classList.add('show');
-    const reason = (err && err.message==='backend-not-configured') ? 'the backend URL is not set up yet.' : (err && err.message ? err.message : 'please try again.');
-    resetSaveButtons(p);
-    endSaveFeedback(p, true, 'Could not save: ' + reason + '. Nothing was saved -- tap Save again. / تعذر الحفظ: ' + reason + '. لم يتم حفظ شيء -- اضغط حفظ مرة أخرى.');
-    return false;
+  let connectionDropped = false;
+  for(let attempt=0; ; attempt++){
+    try{
+      res = await apiCall('registerDonor', {donor: donor, organiserName: p==='add' ? getOrganiserName() : ''});
+      break;
+    }catch(err){
+      const isNetwork = err instanceof TypeError; // fetch() rejects with a TypeError when no reply arrives
+      if(isNetwork && attempt < 2){
+        connectionDropped = true;
+        window._setStatus('Connection dropped -- retrying save (' + (attempt+1) + ')...');
+        await new Promise(function(r){ setTimeout(r, 2000*(attempt+1)); });
+        continue;
+      }
+      const diag = document.getElementById('storageDiag');
+      diag.textContent = 'Save error: ' + (err && err.message ? err.message : String(err));
+      diag.classList.add('show');
+      resetSaveButtons(p);
+      if(isNetwork || connectionDropped){
+        // No reply means we can't know whether it was saved -- never claim "nothing was saved" here.
+        endSaveFeedback(p, true, 'Connection problem -- the registration may or may not have been saved. Tap Save again: it will not create a duplicate. / مشكلة في الاتصال -- قد يكون التسجيل حُفظ أو لا. اضغط حفظ مرة أخرى، ولن يتم إنشاء تسجيل مكرر.');
+      } else {
+        const reason = (err && err.message==='backend-not-configured') ? 'the backend URL is not set up yet.' : (err && err.message ? err.message : 'please try again.');
+        endSaveFeedback(p, true, 'Could not save: ' + reason + '. Nothing was saved -- tap Save again. / تعذر الحفظ: ' + reason + '. لم يتم حفظ شيء -- اضغط حفظ مرة أخرى.');
+      }
+      return false;
+    }
+  }
+
+  // Same CPR, name and phone already on file: either our own earlier attempt got through before
+  // the reply was lost, or this donor registered before with the same details. Either way they
+  // are registered, so show it as saved. (Staff forms only do this after a dropped connection;
+  // otherwise they get the normal "review the existing record" flow below.)
+  let alreadyRegistered = false;
+  if(res.duplicate && res.matchesSubmission && (connectionDropped || p==='reg')){
+    if(res.donor) donor = res.donor;
+    if(res.id) donor.id = res.id;
+    donor.cprImage = null;
+    alreadyRegistered = !connectionDropped;
+    res = {success:true, id: donor.id, createdAt: donor.createdAt, flagged: donor.flagged, flagReason: donor.flagReason,
+      cprImageUrl: donor.cprImageUrl || '', cprImageType: donor.cprImageType || ''};
   }
 
   if(res.duplicate){
@@ -1257,7 +1286,9 @@ async function submitDonorInner(p, printAfter){
     document.getElementById('registerFormWrap').style.display='none';
     document.getElementById('registerSuccess').style.display='block';
     document.getElementById('successId').textContent = '#'+shortId(donor.id);
-    document.getElementById('successName').textContent = donor.fullName+' -- registration saved';
+    document.getElementById('successName').textContent = donor.fullName + (alreadyRegistered
+      ? ' -- you are already registered, no need to register again / أنت مسجل مسبقاً، لا حاجة للتسجيل مرة أخرى'
+      : ' -- registration saved');
     document.getElementById('successUploadWarn').style.display = res.uploadFailed ? 'block' : 'none';
   } else {
     closeAddModal();
