@@ -1,0 +1,63 @@
+name: CI
+
+# Runs on every PR and on pushes to non-main branches. deploy.yml calls it again
+# on main before anything is migrated or deployed. Needs no secrets.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      # The build needs no env vars; anything env-dependent is resolved at request time.
+      - run: pnpm build
+
+  sql:
+    name: SQL tests (plain Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # ubuntu-latest ships PostgreSQL with the service stopped. Start it and give the
+      # runner user a superuser role so run.sh can use the default local socket.
+      - name: Start local PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres createuser --superuser "$USER"
+          echo "$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)" >> "$GITHUB_PATH"
+      - run: bash supabase/sql-tests/run.sh
+
+  supabase:
+    name: Migration + pgTAP (Supabase Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+      # Starts only the database container and applies supabase/migrations.
+      - run: supabase db start
+      - run: supabase test db
