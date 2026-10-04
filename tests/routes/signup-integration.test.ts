@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 const h = vi.hoisted(() => ({
   rpc: vi.fn(),
-  event: { event_date: "2026-10-16", public_registration_open: true, name_ar: "a", name_en: "b", location_ar: "", location_en: "" },
+  event: { event_date: "2026-10-16", event_start_time: "08:30:00", public_registration_open: true, name_ar: "a", name_en: "b", location_ar: "", location_en: "" },
   resendSend: vi.fn(),
   fetchMock: vi.fn(),
 }));
@@ -34,6 +34,7 @@ vi.mock("@/lib/pdf/render", () => ({ renderDonorCard: async () => Buffer.from("%
 
 import { POST } from "@/app/api/signup/route";
 import { resetEnvCache } from "@/lib/env";
+import { multipartRequest } from "../helpers/multipart";
 
 const ID = "abcdef12-3456-4890-8bcd-ef1234567890";
 const good = {
@@ -41,6 +42,10 @@ const good = {
   email: "ali@example.com", bloodType: "O+", recentDonation: false, onMedication: false, consent: true, token: "tok",
 };
 const req = (body: unknown, headers: Record<string, string> = {}) =>
+  "content-type" in headers || Object.keys(headers).some((k) => k.toLowerCase() === "content-type")
+    ? jsonReq(body, headers)
+    : multipartRequest(body, { headers: { "x-real-ip": "9.9.9.9", ...headers } });
+const jsonReq = (body: unknown, headers: Record<string, string> = {}) =>
   new Request("http://x/api/signup", {
     method: "POST",
     headers: { "content-type": "application/json", "x-real-ip": "9.9.9.9", ...headers },
@@ -86,6 +91,23 @@ afterEach(() => {
 });
 
 describe("signup end to end with mocked edges", () => {
+  it("walk-in day: calls register_walk_in_donor without a slot and returns the queue number", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-16T06:00:00Z"));
+    try {
+      rpcs.register_walk_in_donor = () => ({ data: [{ donor_id: ID, queue_number: 12 }], error: null });
+      const { slotId, ...noSlot } = good;
+      void slotId;
+      const res = await POST(req(noSlot));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, walkIn: true, queueNumber: 12, ref: "ABCDEF12" });
+      const call = h.rpc.mock.calls.find((c) => c[0] === "register_walk_in_donor")!;
+      expect(call[1]).not.toHaveProperty("p_slot_id");
+      expect(h.rpc.mock.calls.map((c) => c[0])).not.toContain("register_donor");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("happy path: verifies Turnstile with secret+token+ip, registers, emails", async () => {
     const res = await POST(req(good));
     expect(res.status).toBe(200);
@@ -274,8 +296,10 @@ describe("signup end to end with mocked edges", () => {
     const r = new Request("http://x/api/signup", { method: "POST", body: JSON.stringify(good) });
     expect([415]).toContain((await POST(r)).status);
   });
-  it("accepts application/json with a charset", async () => {
-    expect((await POST(req(good, { "content-type": "application/json; charset=utf-8" }))).status).toBe(200);
+  it("a JSON body (no photo) is rejected with cpr_image_required, even with a charset", async () => {
+    const res = await POST(req(good, { "content-type": "application/json; charset=utf-8" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.cprImage).toBe("cpr_image_required");
   });
   it("sets no-store on every response", async () => {
     expect((await POST(req(good))).headers.get("cache-control")).toBe("no-store");

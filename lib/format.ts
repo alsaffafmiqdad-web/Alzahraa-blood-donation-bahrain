@@ -75,3 +75,13 @@ export function todayInBahrain(now: Date = new Date()): string {
   }).format(now);
   return parts;
 }
+
+/** Current Bahrain wall-clock time as "HH:MM" (24h). */
+export function clockInBahrain(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: TIMEZONE,
+  }).format(now);
+}

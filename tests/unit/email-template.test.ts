@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildConfirmationEmail, escapeHtml } from "@/lib/email/templates";
-import type { DonorCardData } from "@/lib/pdf/DonorCard";
+import type { DonorCardData } from "@/lib/pdf/donor-card-pdf";
 
 const base: DonorCardData & { emailTo: string } = {
   fullName: "Ali Hasan",
   ref: "A1B2C3D4",
   bloodType: "O+",
   slotTime: "09:30:00",
+  queueNumber: null,
   signupDate: "2026-10-03T10:00:00Z",
   event: {
     name_ar: "حملة عطاء الزهراء ال 9 للتبرع بالدم",
@@ -18,6 +19,24 @@ const base: DonorCardData & { emailTo: string } = {
   org: { name: "Org", email: "info@example.org", phone: "+973 1700 0000" },
   emailTo: "ali@example.com",
 };
+
+describe("queue number line", () => {
+  it("shows the queue number in both languages when the donor has one", () => {
+    const { html, text } = buildConfirmationEmail({ ...base, queueNumber: 12 });
+    for (const out of [html, text]) {
+      expect(out).toContain("رقم الدور");
+      expect(out).toContain("Queue number");
+      expect(out).toContain("#12");
+    }
+  });
+  it("shows neither label without a number", () => {
+    const { html, text } = buildConfirmationEmail(base);
+    for (const out of [html, text]) {
+      expect(out).not.toContain("رقم الدور");
+      expect(out).not.toContain("Queue number");
+    }
+  });
+});
 
 describe("buildConfirmationEmail", () => {
   it("has a bilingual subject without dashes", () => {

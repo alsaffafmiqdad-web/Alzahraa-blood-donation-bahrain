@@ -42,7 +42,7 @@ pnpm dlx supabase@latest status -o env   # shows API_URL, ANON_KEY and SERVICE_R
 4. `pnpm dev`, then sign in at http://localhost:3000/admin/login. The local mail inbox and Studio are at http://127.0.0.1:54324 and http://127.0.0.1:54323.
 5. `supabase stop` when done (add `--no-backup` to also drop the data).
 
-`supabase/config.toml` is tuned for this project: self sign-up is off, the minimum password is 12 characters (the same rule as `/admin/account`), and realtime, storage, edge functions and analytics are switched off because the app does not use them.
+`supabase/config.toml` is tuned for this project: self sign-up is off, the minimum password is 12 characters (the same rule as `/admin/account`), Storage is on (private bucket for CPR card photos), and realtime, edge functions and analytics are switched off because the app does not use them.
 
 ## Supabase project
 
@@ -61,6 +61,8 @@ supabase db push
 
 or paste `supabase/migrations/20261003000000_init.sql` into the Supabase SQL editor and run it. **If you paste it by hand, record it as applied** (`supabase migration repair --status applied 20261003000000`), otherwise the first CI deploy will try to run it again and fail. The migration creates the tables, row level security policies, the functions (`register_donor`, `check_in_donor`, email budget, rate limit) and seeds the event and the eleven 30 minute slots (08:30 to 13:30, capacity 25 each). Then edit the real event details and slots at `/admin/event` and `/admin/slots`.
 
+The second migration (`20261004000000_cpr_image.sql`) adds `donors.cpr_image_path` and creates the private `cpr-images` storage bucket (2 MB limit, JPEG, PNG or WebP) with admin-only read and delete policies. Uploads happen only on the server with the service role.
+
 The migration also grants the `service_role` explicitly (schema usage, all seven tables, the sequences, and each function the server calls), so nothing depends on the project's "automatically expose new tables" setting. No manual `grant` step is needed.
 
 ### Database tests
@@ -70,6 +72,8 @@ The migration also grants the `service_role` explicitly (schema usage, all seven
 
 ## Adding admins
 
+The first admin has to be created by hand (steps 1 and 2 below). After that, any admin can add more admins in Admin > Settings (email, display name and a temporary password; they should change it after signing in). Removal is not in the UI.
+
 1. Authentication > Users > Add user > Create new user. Enter the email and a temporary password and tick Auto Confirm.
 2. In the SQL editor:
 
@@ -78,7 +82,7 @@ The migration also grants the `service_role` explicitly (schema usage, all seven
    select id, 'Fatima' from auth.users where email = 'fatima@example.org';
    ```
 
-3. The admin signs in at `/admin/login` and changes the password at `/admin/account` (at least 12 characters).
+3. The admin signs in at `/admin/login` and changes the password in Admin > Settings (`/admin/account`, at least 12 characters).
 
 To remove an admin: `delete from public.admins where user_id = (select id from auth.users where email = '...');` and delete the user. No invite emails are used (Supabase's built-in SMTP only sends to project team members).
 
@@ -148,7 +152,7 @@ Supabase Free has no downloadable backups. Every week an organiser should open A
 
 The privacy notice promises: "We delete your information within 3 months after the event" (`RETENTION_MONTHS = 3` in `lib/config.ts` fills in the number, in Arabic and English). **Nothing deletes donor data automatically.** The daily cron's maintenance step (`daily_maintenance`) only clears technical rows: rate limit counters older than 1 day and email send records older than 7 days. Donor rows, the status history and any CSV exports stay until you delete them, so the deletion is a manual, dated task (see the checklist). If you change the event date or `RETENTION_MONTHS`, recompute the date.
 
-To delete: in the Supabase SQL editor run `delete from public.donors;` (the status history is removed with it; email records are detached), or delete the Supabase project. Also delete every exported CSV and any sample donor card PDFs.
+To delete: in the Supabase SQL editor run `delete from public.donors;` (the status history is removed with it; email records are detached), or delete the Supabase project. `delete from public.donors;` does **not** delete the CPR card photos: also empty the `cpr-images` bucket in Supabase Dashboard > Storage (direct SQL deletes on `storage.objects` are blocked). Also delete every exported CSV and any sample donor card PDFs.
 
 ## Before launch
 
@@ -161,13 +165,14 @@ Tick each box and keep the date you did it.
 - [ ] **PDPL legal check:** the consent wording, cross-border storage (India or Germany for the database, the US for Vercel and Resend), and the retention period (`RETENTION_MONTHS = 3`, shown in the privacy notice).
 - [ ] **Domain:** buy one or use an organisation subdomain. Add it to the Vercel project (Settings > Domains), set `NEXT_PUBLIC_SITE_URL` to it, add its hostname to the Cloudflare Turnstile widget, and verify the sending domain in Resend (SPF and DKIM).
 - [ ] Vercel environment: every variable from `.env.example` **with exactly the same names** (the `NEXT_PUBLIC_` prefix is required where shown, so `SUPABASE_ANON_KEY` or `TURNSTILE_SITE_KEY` without it will not work), `CRON_SECRET` and `RATE_LIMIT_SALT` random (32+ characters), and the organisation name, contact email and phone filled in (they appear in the privacy notice, the email and the PDF). `NEXT_PUBLIC_` values are built into the app, so redeploy after changing them.
-- [ ] Supabase Auth: "Allow new users to sign up" is **off**. Admins are added by hand.
+- [ ] Supabase Auth: "Allow new users to sign up" is **off**. The first admin is added by hand; later ones in Admin > Settings.
+- [ ] Confirm the Thmanyah font licence allows web and PDF embedding (no licence file ships with the fonts).
 - [ ] Have an Arabic speaker review the Arabic copy, the English event name and the seed values in the migration.
 - [ ] **Verify the cron ran** after the first deploy: Vercel > Settings > Cron Jobs > Run, or Logs filtered by `/api/cron/daily`; expect 200 (401 means `CRON_SECRET` is missing). Check again a day later. If it silently stops, Supabase pauses the project after 7 days.
 - [ ] **Export the Airtable base to CSV as an archive, then retire the old app (required).** There is no data migration: the new app starts fresh. Archive the old Apps Script deployment (Apps Script > Deploy > Manage deployments), revoke its Airtable token, and switch off GitHub Pages for this repository.
 - [ ] Test with real Gmail and Outlook inboxes (spam folder, PDF rendering, Arabic).
 - [ ] Launch pacing: signups send an email immediately while budget remains (95 per rolling 24 hours). More than that in a day waits for the daily cron, which sends only what the window has freed up, so a large backlog takes several days to clear. Use the admin "Send email" button for urgent ones and watch "Emails pending" on the dashboard.
 - [ ] Do a dry run of the event day: verify, check in, queue numbers, printing, status changes including a **late arrival marked no show** (it can still be checked in), and the CSV export. A deferred donor is deliberately not checked in directly: staff change the status first.
-- [ ] Look at a sample donor card PDF with real Arabic names. If Arabic ever renders joined wrongly on your viewer, set `PDF_ARABIC_ENABLED = false` in `lib/config.ts` (English block only; Arabic stays in the email).
+- [ ] Look at a sample donor PDF (the A4 Donor Registration Form, sent to donors by download and email) with real Arabic names, and check the Arabic event name, location and donor name join correctly. It includes the donor's full CPR, flags and notes by owner decision; cover this in the PDPL check.
 - [ ] During the campaign: export the CSV weekly to private storage.
-- [ ] **After the event + 3 months (16 January 2027 for an event on 16 October 2026): delete the donor data** (`delete from public.donors;` or delete the Supabase project) **and every exported CSV**, as the privacy notice promises. Put a reminder in a calendar now.
+- [ ] **After the event + 3 months (16 January 2027 for an event on 16 October 2026): delete the donor data** (`delete from public.donors;` or delete the Supabase project) **empty the `cpr-images` storage bucket, and delete every exported CSV**, as the privacy notice promises. Put a reminder in a calendar now.

@@ -55,6 +55,7 @@ export default async function DashboardPage({
     toListRow(r, slotTimes),
   );
   const stats = computeStats(donors);
+  const inProgress = stats.byStatus.verified + stats.byStatus.waiting + stats.byStatus.screening;
 
   const printParams = new URLSearchParams();
   for (const key of ["q", "status", "flagged", "slot", "source", "sort"] as const) {
@@ -70,14 +71,12 @@ export default async function DashboardPage({
           Could not load donors: {donorsRes.error.message}
         </p>
       )}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        <Stat label="Total" value={stats.total} />
-        {STATUSES.map((s) => (
-          <Stat key={s} label={STATUS_LABELS[s]} value={stats.byStatus[s]} />
-        ))}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Total donors" value={stats.total} />
+        <Stat label="Donated" value={stats.byStatus.donated} />
+        <Stat label="In progress" value={inProgress} hint="Verified, waiting or in screening" />
         <Stat label="Flagged" value={stats.flagged} />
-        <Stat label="Walk-ins" value={stats.walkIns} />
-        <Stat label="Emails pending" value={stats.emailsPending} />
+        {stats.emailsPending > 0 && <Stat label="Emails pending" value={stats.emailsPending} />}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -160,11 +159,12 @@ export default async function DashboardPage({
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
-    <div className="rounded-lg border border-line bg-white px-3 py-2">
-      <div className="text-xs text-ink-soft">{label}</div>
-      <div className="text-xl font-bold">{value}</div>
+    <div className="rounded-lg border border-line bg-white px-4 py-3" title={hint}>
+      <div className="text-sm font-medium text-ink">{label}</div>
+      <div className="text-2xl font-bold text-ink">{value}</div>
+      {hint && <div className="text-xs text-ink-soft">{hint}</div>}
     </div>
   );
 }

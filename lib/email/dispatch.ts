@@ -3,7 +3,7 @@ import { EMAIL_CONCURRENCY } from "@/lib/config";
 import { claimEmailSend, finishEmailSend, getDonorForEmail } from "@/lib/db/email";
 import { emailDailyBudget, resendConfig } from "@/lib/env";
 import { sendConfirmationEmail } from "@/lib/email/send";
-import { donorCardData } from "@/lib/pdf/donor-card-pdf";
+import { donorCardData, registrationFormData } from "@/lib/pdf/donor-card-pdf";
 import { renderDonorCard } from "@/lib/pdf/render";
 
 export type EmailOutcome = "sent" | "queued" | "failed" | "none";
@@ -25,7 +25,7 @@ export async function sendDonorEmail(donorId: string): Promise<EmailOutcome> {
     if (claimId === null) return "queued";
 
     const data = donorCardData(donor);
-    const pdf = await renderDonorCard(data);
+    const pdf = await renderDonorCard(registrationFormData(donor));
     const result = await sendConfirmationEmail({ ...data, emailTo: donor.email }, pdf);
     await finishEmailSend(claimId, result.ok, result.ok ? null : result.error);
     claimId = null;

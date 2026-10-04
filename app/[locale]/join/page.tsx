@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getEvent, getSlotAvailability, type EventRow, type SlotAvailability } from "@/lib/db/public";
+import { isWalkInMode } from "@/lib/event-mode";
 import { formatDate } from "@/lib/format";
 import { getDictionary, isLocale, t } from "@/lib/i18n";
 import { SignupForm } from "@/components/public/SignupForm";
@@ -27,6 +28,7 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
   const name = locale === "ar" ? event.name_ar : event.name_en;
   const location = locale === "ar" ? event.location_ar : event.location_en;
   const date = formatDate(event.event_date, locale);
+  const walkIn = isWalkInMode(event, new Date());
 
   return (
     <div className="space-y-5">
@@ -42,7 +44,8 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
         <SignupForm
           locale={locale}
           dict={dict}
-          slots={slots}
+          slots={walkIn ? [] : slots}
+          walkIn={walkIn}
           eventDate={event.event_date}
           slotHint={t(dict.join.slot_hint, { date })}
         />

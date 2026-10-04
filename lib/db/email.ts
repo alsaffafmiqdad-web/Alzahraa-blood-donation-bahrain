@@ -50,13 +50,24 @@ export type DonorForEmail = {
   slotTime: string | null;
   createdAt: string;
   event: EventRow;
+  /** The rest is only for the A4 registration form PDF, never the email body. */
+  cpr: string;
+  dob: string | null;
+  phone: string | null;
+  source: "self_signup" | "admin_added" | "walk_in";
+  queueNumber: number | null;
+  flagged: boolean;
+  flagReasons: string[];
+  notes: string | null;
 };
 
 export async function getDonorForEmail(donorId: string): Promise<DonorForEmail | null> {
   const db = createSupabaseAdminClient();
   const { data: donor, error } = await db
     .from("donors")
-    .select("id, email, full_name, blood_type, slot_id, created_at")
+    .select(
+      "id, email, full_name, blood_type, slot_id, created_at, cpr, dob, phone, source, queue_number, flagged, flag_reasons, notes",
+    )
     .eq("id", donorId)
     .maybeSingle();
   if (error) throw new Error(`getDonorForEmail failed: ${error.message}`);
@@ -79,5 +90,13 @@ export async function getDonorForEmail(donorId: string): Promise<DonorForEmail |
     slotTime,
     createdAt: donor.created_at as string,
     event: event as EventRow,
+    cpr: donor.cpr as string,
+    dob: (donor.dob as string | null) ?? null,
+    phone: (donor.phone as string | null) ?? null,
+    source: donor.source as DonorForEmail["source"],
+    queueNumber: (donor.queue_number as number | null) ?? null,
+    flagged: Boolean(donor.flagged),
+    flagReasons: (donor.flag_reasons as string[] | null) ?? [],
+    notes: (donor.notes as string | null) ?? null,
   };
 }

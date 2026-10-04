@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 import { createCardToken } from "@/lib/card-link";
 import { MAX_SIGNUP_BODY_BYTES } from "@/lib/config";
+import {
+  MAX_CPR_IMAGE_BYTES,
+  MULTIPART_SIGNUP_MAX_BYTES,
+  sniffImageType,
+  type CprImageExt,
+} from "@/lib/cpr-image";
+import { attachCprImage } from "@/lib/db/cpr-image";
 import { getEvent, registerDonor } from "@/lib/db/public";
 import { sendDonorEmail } from "@/lib/email/dispatch";
+import { isWalkInMode } from "@/lib/event-mode";
 import { shortRef } from "@/lib/format";
 import { checkSignupRateLimit, clientIp, recordSignupAttempt } from "@/lib/rate-limit";
 import { computeFlags } from "@/lib/screening";
 import { verifyTurnstile } from "@/lib/turnstile";
-import { signupSchema } from "@/lib/validation";
+import { signupSchema, signupWalkInSchema, type SignupInput } from "@/lib/validation";
 import { en } from "@/lib/i18n/dictionaries/en";
 
 export const runtime = "nodejs";
@@ -26,28 +34,70 @@ export async function POST(req: Request) {
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
 
-    if (!(req.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) {
+    const contentType = (req.headers.get("content-type") ?? "").toLowerCase();
+    let raw: unknown;
+    let image: { bytes: Uint8Array; ext: CprImageExt } | null = null;
+    let imageError: string | null = null;
+
+    if (contentType.startsWith("application/json")) {
+      const text = await req.text();
+      if (text.length > MAX_SIGNUP_BODY_BYTES || Buffer.byteLength(text) > MAX_SIGNUP_BODY_BYTES) {
+        return json({ ok: false, error: "too_large" }, 413);
+      }
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        return json({ ok: false, error: "bad_json" }, 400);
+      }
+    } else if (contentType.startsWith("multipart/form-data")) {
+      const length = Number(req.headers.get("content-length"));
+      if (!req.headers.get("content-length") || !Number.isFinite(length) || length > MULTIPART_SIGNUP_MAX_BYTES) {
+        return json({ ok: false, error: "too_large" }, 413);
+      }
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        return json({ ok: false, error: "bad_json" }, 400);
+      }
+      const payload = form.get("payload");
+      if (typeof payload !== "string") return json({ ok: false, error: "bad_json" }, 400);
+      if (Buffer.byteLength(payload) > MAX_SIGNUP_BODY_BYTES) return json({ ok: false, error: "too_large" }, 413);
+      try {
+        raw = JSON.parse(payload);
+      } catch {
+        return json({ ok: false, error: "bad_json" }, 400);
+      }
+      const file = form.get("cprImage");
+      if (file !== null) {
+        if (typeof file === "string" || file.size === 0) {
+          imageError = "cpr_image_invalid";
+        } else if (file.size > MAX_CPR_IMAGE_BYTES) {
+          imageError = "cpr_image_too_large";
+        } else {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const ext = sniffImageType(bytes);
+          if (ext) image = { bytes, ext };
+          else imageError = "cpr_image_invalid";
+        }
+      }
+    } else {
       return json({ ok: false, error: "unsupported_media_type" }, 415);
     }
-
-    const text = await req.text();
-    if (text.length > MAX_SIGNUP_BODY_BYTES || Buffer.byteLength(text) > MAX_SIGNUP_BODY_BYTES) {
-      return json({ ok: false, error: "too_large" }, 413);
-    }
-    let raw: unknown;
-    try {
-      raw = JSON.parse(text);
-    } catch {
-      return json({ ok: false, error: "bad_json" }, 400);
-    }
-
-    const parsed = signupSchema.safeParse(raw);
-    if (!parsed.success) {
+    const event = await getEvent();
+    const walkIn = isWalkInMode(event, new Date());
+    // Owner decisions B and W4: the photo is required in slot mode and optional in walk-in mode.
+    if (!image && !imageError && !walkIn) imageError = "cpr_image_required";
+    const parsed = (walkIn ? signupWalkInSchema : signupSchema).safeParse(raw);
+    if (!parsed.success || imageError) {
       const fields: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path.join(".") || "_";
-        if (!(key in fields)) fields[key] = ERROR_CODES.has(issue.message) ? issue.message : "server";
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          const key = issue.path.join(".") || "_";
+          if (!(key in fields)) fields[key] = ERROR_CODES.has(issue.message) ? issue.message : "server";
+        }
       }
+      if (imageError) fields.cprImage = imageError;
       return json({ ok: false, error: "validation", fields }, 400);
     }
     const input = parsed.data;
@@ -61,7 +111,6 @@ export async function POST(req: Request) {
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
 
-    const event = await getEvent();
     if (!event.public_registration_open) {
       return json({ ok: false, error: "registration_closed" }, 403);
     }
@@ -72,6 +121,7 @@ export async function POST(req: Request) {
       event.event_date,
     );
 
+    const slotId = walkIn ? null : (input as SignupInput).slotId;
     const result = await registerDonor({
       fullName: input.fullName,
       cpr: input.cpr,
@@ -79,7 +129,7 @@ export async function POST(req: Request) {
       phone: input.phone,
       email: input.email,
       bloodType: input.bloodType,
-      slotId: input.slotId,
+      slotId,
       recentDonation: input.recentDonation,
       onMedication: input.onMedication,
       flagged,
@@ -89,6 +139,9 @@ export async function POST(req: Request) {
       if (result.reason === "registration_closed") return json({ ok: false, error: result.reason }, 403);
       return json({ ok: false, error: result.reason }, 409);
     }
+
+    // The photo is a convenience for staff: if the upload fails the registration still stands.
+    if (image) await attachCprImage(result.id, image.bytes, image.ext);
 
     let emailStatus: "sent" | "queued" | "none" = "none";
     if (input.email) {
@@ -104,7 +157,11 @@ export async function POST(req: Request) {
       console.error(`card token error donor=${result.id}: ${e instanceof Error ? e.message : "unknown"}`);
     }
 
-    return json({ ok: true, ref: shortRef(result.id), slotId: input.slotId, emailStatus, ...(card ? { card } : {}) }, 200);
+    const ref = shortRef(result.id);
+    if (walkIn) {
+      return json({ ok: true, ref, walkIn: true, queueNumber: result.queueNumber, emailStatus, ...(card ? { card } : {}) }, 200);
+    }
+    return json({ ok: true, ref, slotId, emailStatus, ...(card ? { card } : {}) }, 200);
   } catch (e) {
     console.error(`signup error: ${e instanceof Error ? e.message : "unknown"}`);
     return json({ ok: false, error: "server" }, 500);

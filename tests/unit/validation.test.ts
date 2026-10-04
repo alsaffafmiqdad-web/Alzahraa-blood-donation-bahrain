@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  addAdminSchema,
   adminDonorSchema,
   createSlotSchema,
   eventSchema,
   passwordSchema,
   setStatusSchema,
   signupSchema,
+  queueStartSchema,
+  signupWalkInSchema,
 } from "@/lib/validation";
 
 const good = {
@@ -140,9 +143,12 @@ describe("other schemas", () => {
       location_ar: "",
       location_en: "",
       event_date: "2026-10-16",
+      event_start_time: "08:30",
       public_registration_open: "on",
     };
     expect(eventSchema.safeParse(ok).success).toBe(true);
+    expect(eventSchema.safeParse({ ...ok, event_start_time: "8:30" }).success).toBe(false);
+    expect(eventSchema.safeParse({ ...ok, event_start_time: "24:00" }).success).toBe(false);
     expect(eventSchema.safeParse({ ...ok, event_date: "16/10/2026" }).success).toBe(false);
   });
   it("slot and password schemas", () => {
@@ -152,5 +158,61 @@ describe("other schemas", () => {
     expect(passwordSchema.safeParse({ password: "short", confirm: "short" }).success).toBe(false);
     expect(passwordSchema.safeParse({ password: "a-long-enough-pw", confirm: "different-long-pw" }).success).toBe(false);
     expect(passwordSchema.safeParse({ password: "a-long-enough-pw", confirm: "a-long-enough-pw" }).success).toBe(true);
+  });
+});
+
+describe("addAdminSchema", () => {
+  const ok = { email: "  Fatima@Example.ORG ", displayName: "  Fatima  ", password: "a-long-password-1", confirm: "a-long-password-1" };
+  it("trims and lowercases the email and cleans the name", () => {
+    const r = addAdminSchema.safeParse(ok);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.email).toBe("fatima@example.org");
+      expect(r.data.displayName).toBe("Fatima");
+    }
+  });
+  it("rejects a password under 12 characters", () => {
+    expect(addAdminSchema.safeParse({ ...ok, password: "short", confirm: "short" }).success).toBe(false);
+  });
+  it("rejects a mismatched confirm", () => {
+    const r = addAdminSchema.safeParse({ ...ok, confirm: "different-password" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]!.path).toEqual(["confirm"]);
+  });
+  it("rejects a display name over 60 characters", () => {
+    expect(addAdminSchema.safeParse({ ...ok, displayName: "a".repeat(61) }).success).toBe(false);
+  });
+  it("rejects an invalid email", () => {
+    expect(addAdminSchema.safeParse({ ...ok, email: "nope" }).success).toBe(false);
+  });
+});
+
+describe("signupWalkInSchema", () => {
+  const { slotId, ...noSlot } = good;
+  void slotId;
+  it("accepts a payload without slotId", () => {
+    expect(signupWalkInSchema.safeParse(noSlot).success).toBe(true);
+  });
+  it("accepts and ignores any slotId", () => {
+    expect(signupWalkInSchema.safeParse({ ...noSlot, slotId: "x" }).success).toBe(true);
+    expect(signupWalkInSchema.safeParse({ ...noSlot, slotId: 3 }).success).toBe(true);
+  });
+  it("still rejects unknown keys", () => {
+    expect(signupWalkInSchema.safeParse({ ...noSlot, flagged: false }).success).toBe(false);
+  });
+  it("signupSchema still requires slotId", () => {
+    expect(codes(noSlot).slotId).toBe("slot_required");
+  });
+});
+
+describe("queueStartSchema", () => {
+  it.each([["1", 1], ["250", 250], ["99999", 99999]])("accepts %s", (v, n) => {
+    const r = queueStartSchema.safeParse({ queue_start: v });
+    expect(r.success && r.data.queue_start).toBe(n);
+  });
+  it.each(["0", "100000", "2.5", "", "abc"])("rejects %j", (v) => {
+    const r = queueStartSchema.safeParse({ queue_start: v });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]!.message).toMatch(/^Queue start must be/);
   });
 });

@@ -23,5 +23,3 @@ export const BLOOD_TYPES = ["unknown", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+
 export const SOURCES = ["self_signup", "admin_added", "walk_in"] as const;
 // Owner decision: only two screening questions are asked. Everything else is asked in person on the day.
 export const SCREENING_KEYS = ["recentDonation", "onMedication"] as const;
-// Set to false to render only the English block in the PDF if Arabic shaping looks wrong.
-export const PDF_ARABIC_ENABLED = true;

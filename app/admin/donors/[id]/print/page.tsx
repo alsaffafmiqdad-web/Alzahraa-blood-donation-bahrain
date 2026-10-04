@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { formatDateTime, shortRef } from "@/lib/format";
+import { formatDateShort, shortRef } from "@/lib/format";
 import { donorIdSchema } from "@/lib/validation";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AutoPrint } from "@/components/admin/AutoPrint";
@@ -76,7 +76,7 @@ export default async function PrintDonorPage({
         <PrintButton />
       </div>
       {autoPrint && <AutoPrint />}
-      <PrintForm donor={donor} event={eventRes.data as PrintEvent} printedOn={formatDateTime(new Date().toISOString())} />
+      <PrintForm donor={donor} event={eventRes.data as PrintEvent} printedOn={formatDateShort(new Date().toISOString())} />
     </AdminShell>
   );
 }

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { CPR_IMAGE_BUCKET } from "@/lib/cpr-image";
 import type { Status } from "@/lib/donor-filters";
 import { formatDateTime, formatSlot, shortRef } from "@/lib/format";
 import { en } from "@/lib/i18n/dictionaries/en";
@@ -32,6 +33,7 @@ type Donor = {
   email_attempts: number;
   email_last_error: string | null;
   created_at: string;
+  cpr_image_path: string | null;
 };
 
 type HistoryRow = {
@@ -61,7 +63,7 @@ export default async function DonorDetailPage({
   if (!data) notFound();
   const d = data as Donor;
 
-  const [slotRes, historyRes, eventRes] = await Promise.all([
+  const [slotRes, historyRes, eventRes, imageRes] = await Promise.all([
     d.slot_id !== null
       ? supabase.from("slots").select("starts_at").eq("id", d.slot_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -72,7 +74,11 @@ export default async function DonorDetailPage({
       .order("changed_at", { ascending: false })
       .order("id", { ascending: false }),
     supabase.from("event").select("event_date").single(),
+    d.cpr_image_path
+      ? supabase.storage.from(CPR_IMAGE_BUCKET).createSignedUrl(d.cpr_image_path, 600)
+      : Promise.resolve(null),
   ]);
+  const imageUrl = imageRes?.data?.signedUrl ?? null;
   const slotTime = (slotRes.data as { starts_at: string } | null)?.starts_at ?? null;
   const history = (historyRes.data ?? []) as HistoryRow[];
   const eventDate = (eventRes.data as { event_date: string } | null)?.event_date ?? null;
@@ -147,6 +153,20 @@ export default async function DonorDetailPage({
           </div>
         ))}
       </dl>
+
+      <section className="mb-6 rounded-lg border border-line bg-white p-4">
+        <h2 className="mb-2 font-bold">CPR card photo</h2>
+        {!d.cpr_image_path ? (
+          <p className="text-sm text-ink-soft">No photo uploaded.</p>
+        ) : imageUrl ? (
+          <a href={imageUrl} target="_blank" rel="noopener noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="CPR card photo" className="max-h-72 rounded border border-line" />
+          </a>
+        ) : (
+          <p className="text-sm text-crimson">Could not load the photo.</p>
+        )}
+      </section>
 
       <section className="mb-6 rounded-lg border border-line bg-white p-4">
         <h2 className="mb-2 font-bold">Screening answers</h2>

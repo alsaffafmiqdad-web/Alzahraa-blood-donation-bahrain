@@ -184,7 +184,7 @@ describe("L4 pagination past 1000 rows on the dashboard and the print list", () 
     const tree = await Page({ searchParams: Promise.resolve({}) });
     const { props } = flat(tree);
     expect(fk.requests).toEqual([0, 1000, 2000]);
-    expect(props.some((p) => p.label === "Total" && p.value === 2500)).toBe(true);
+    expect(props.some((p) => p.label === "Total donors" && p.value === 2500)).toBe(true);
   });
   it("print list includes all 2500 donors", async () => {
     const fk = fake(rows(2500));
@@ -200,7 +200,7 @@ describe("L4 pagination past 1000 rows on the dashboard and the print list", () 
     const { default: Page } = await import("@/app/admin/page");
     const tree = await Page({ searchParams: Promise.resolve({}) });
     expect(fk.requests).toEqual([0, 1000]);
-    expect(flat(tree).props.some((p) => p.label === "Total" && p.value === 1000)).toBe(true);
+    expect(flat(tree).props.some((p) => p.label === "Total donors" && p.value === 1000)).toBe(true);
   });
 });
 

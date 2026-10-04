@@ -42,7 +42,7 @@ function fakeSupabase() {
   };
 }
 
-import { checkInDonor, setDonorStatus, verifyDonor } from "@/app/admin/actions";
+import { checkInDonor, setDonorStatus, updateQueueStart, verifyDonor } from "@/app/admin/actions";
 
 const ID = "11111111-2222-4333-8444-555555555555";
 
@@ -110,5 +110,40 @@ describe("verifyDonor", () => {
     const res = await verifyDonor(ID);
     expect(res.ok).toBe(true);
     expect(h.updates).toEqual([{ table: "donors", values: { status: "verified" } }]);
+  });
+});
+
+describe("updateQueueStart", () => {
+  const prev = { ok: false } as never;
+  const fd = (v: string) => {
+    const f = new FormData();
+    f.set("queue_start", v);
+    return f;
+  };
+  function withUpdate(error: { message: string } | null) {
+    const eq = vi.fn().mockResolvedValue({ error });
+    const update = vi.fn(() => ({ eq }));
+    const from = vi.fn(() => ({ update }));
+    h.requireAdmin.mockResolvedValue({ supabase: { from }, userId: "u1", displayName: "Admin" });
+    return { eq, update, from };
+  }
+  it("saves a valid start on the event row", async () => {
+    const m = withUpdate(null);
+    expect(await updateQueueStart(prev, fd("250"))).toEqual({ ok: true, message: "Queue start saved" });
+    expect(m.from).toHaveBeenCalledWith("event");
+    expect(m.update).toHaveBeenCalledWith({ queue_start: 250 });
+    expect(m.eq).toHaveBeenCalledWith("id", true);
+  });
+  it("rejects 0 without a DB call", async () => {
+    const m = withUpdate(null);
+    const res = await updateQueueStart(prev, fd("0"));
+    expect(res.ok).toBe(false);
+    expect(res.fieldErrors?.queue_start).toBeTruthy();
+    expect(m.from).not.toHaveBeenCalled();
+  });
+  it("returns a generic error when the update fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    withUpdate({ message: "boom" });
+    expect(await updateQueueStart(prev, fd("5"))).toMatchObject({ ok: false, error: "Could not save the queue start" });
   });
 });

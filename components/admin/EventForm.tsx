@@ -11,6 +11,7 @@ export type EventValues = {
   location_ar: string;
   location_en: string;
   event_date: string;
+  event_start_time: string;
   public_registration_open: boolean;
 };
 
@@ -42,6 +43,23 @@ export function EventForm({ event }: { event: EventValues }) {
       {field("location_en", "Location (English)")}
       {field("location_ar", "Location (Arabic)", { dir: "rtl" })}
       {field("event_date", "Event date", { type: "date" })}
+      <div>
+        <label htmlFor="event_start_time" className="mb-1 block text-sm font-medium">
+          Start time (Bahrain time)
+        </label>
+        <input
+          id="event_start_time"
+          name="event_start_time"
+          type="time"
+          defaultValue={event.event_start_time.slice(0, 5)}
+          aria-describedby="event_start_time-hint"
+          className={inputCls}
+        />
+        <p id="event_start_time-hint" className="mt-1 text-sm text-ink-soft">
+          On the event date, from this time, the public link registers donors as walk-ins, gives each one the next queue number, and does not ask them to choose a time.
+        </p>
+        {fe.event_start_time && <p className="mt-1 text-sm text-crimson">{fe.event_start_time}</p>}
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"

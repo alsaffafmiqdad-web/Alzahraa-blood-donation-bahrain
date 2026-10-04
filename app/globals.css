@@ -19,8 +19,8 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-thmanyah-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-thmanyah-display), var(--font-thmanyah-sans), ui-serif, Georgia, serif;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -80,6 +80,28 @@
   html {
     @apply font-sans;
   }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
+  }
+}
+
+/* Native selects: our own chevron, with room on the inline-end side (RTL aware). Unlayered on purpose. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B6259' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 1rem 1rem;
+  background-position: right 0.625rem center;
+  padding-inline-end: 2.25rem;
+}
+select:not([multiple]):not([size]):dir(rtl) {
+  background-position: left 0.625rem center;
 }
 
 /* Print pages (A4 staff form) */

@@ -7,7 +7,7 @@ import {
   type DonorRecord,
 } from "@/lib/donor-filters";
 import { fetchAllRows } from "@/lib/db/paginate";
-import { formatDateTime, shortRef } from "@/lib/format";
+import { formatDateShort, shortRef } from "@/lib/format";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { PrintForm, type PrintDonor, type PrintEvent } from "@/components/admin/PrintForm";
@@ -48,7 +48,7 @@ export default async function PrintListPage({
   const extra = new Map(all.map((r) => [r.id, r]));
   const chosen = sortDonors(filterDonors(numbered, filters), "registration", slotTimes);
   const event = eventRes.data as PrintEvent | null;
-  const printedOn = formatDateTime(new Date().toISOString());
+  const printedOn = formatDateShort(new Date().toISOString());
 
   return (
     <AdminShell displayName={displayName}>

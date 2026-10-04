@@ -1,9 +1,10 @@
 import "server-only";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { DonorCard, type DonorCardData } from "@/lib/pdf/DonorCard";
 import { registerFonts } from "@/lib/pdf/fonts";
+import { RegistrationFormPdf, type RegistrationFormData } from "@/lib/pdf/RegistrationForm";
 
-export async function renderDonorCard(data: DonorCardData): Promise<Buffer> {
+/** The donor's PDF: the A4 Donor Registration Form. */
+export async function renderDonorCard(data: RegistrationFormData): Promise<Buffer> {
   registerFonts();
-  return renderToBuffer(DonorCard({ data }));
+  return renderToBuffer(RegistrationFormPdf({ data }));
 }
