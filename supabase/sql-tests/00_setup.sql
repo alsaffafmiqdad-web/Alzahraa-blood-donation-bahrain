@@ -14,3 +14,5 @@ alter default privileges in schema public grant all on sequences to anon, authen
 alter default privileges in schema public grant all on functions to anon, authenticated;
 -- psql is run from the repository root by run.sh
 \i supabase/migrations/20261003000000_init.sql
+\i supabase/migrations/20261004000000_cpr_image.sql
+\i supabase/migrations/20261005000000_walk_in_signup.sql

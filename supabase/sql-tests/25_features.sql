@@ -99,5 +99,70 @@ begin
   perform t.chk('anon still has no direct table access', t.attempt('anon', null, 'select * from public.donors'), 'denied');
 end $$;
 
+-- public walk-in signup: automatic queue number from the same counter as desk check-in
+do $$
+declare n0 integer; r record; did uuid; ci record; adm constant text := 'aaaaaaaa-0000-4000-8000-000000000001';
+begin
+  select queue_counter into n0 from public.event;
+  perform set_config('request.jwt.claim.sub', '', true);
+  set local role service_role;
+  select * into r from public.register_walk_in_donor('Walk P','777000010','1990-01-01','33335555',null,'unknown',false,false,false,'{}');
+  reset role;
+  did := r.donor_id;
+  perform t.chk('walk-in returns next queue number', r.queue_number::text, (n0 + 1)::text);
+  perform t.chk('walk-in bumps the counter', (select queue_counter::text from public.event), (n0 + 1)::text);
+  perform t.chk('walk-in row state',
+    (select source || '/' || (slot_id is null)::text || '/' || status || '/' || queue_number::text || '/' || (checked_in_at is not null)::text
+       from public.donors where id = did),
+    'walk_in/true/waiting/' || (n0 + 1)::text || '/true');
+  perform t.chk('walk-in created history actor and status',
+    (select changed_by_name || '/' || to_status from public.donor_status_history where donor_id = did and kind = 'created'), 'self signup/waiting');
+  perform t.chk('walk-in duplicate cpr raises', t.attempt('service_role', null,
+    $q$select * from public.register_walk_in_donor('Walk P','777000010','1990-01-01','33335555',null,'unknown',false,false,false,'{}')$q$), 'error:P0001');
+  perform t.chk('duplicate burns no number', (select queue_counter::text from public.event), (n0 + 1)::text);
+  update public.event set public_registration_open = false;
+  perform t.chk('walk-in refused when closed', t.attempt('service_role', null,
+    $q$select * from public.register_walk_in_donor('Walk Q','777000011','1990-01-01','33335556',null,'unknown',false,false,false,'{}')$q$), 'error:P0001');
+  perform t.chk('closed burns no number', (select queue_counter::text from public.event), (n0 + 1)::text);
+  update public.event set public_registration_open = true;
+
+  perform set_config('request.jwt.claim.sub', adm, true);
+  set local role authenticated;
+  select * into ci from public.check_in_donor(did);
+  reset role;
+  perform t.chk('desk check-in of a walk-in is a repeat', ci.already_checked_in::text || '/' || ci.queue_number::text || '/' || ci.status,
+    'true/' || (n0 + 1)::text || '/waiting');
+  perform t.chk('repeat check-in leaves the counter', (select queue_counter::text from public.event), (n0 + 1)::text);
+
+  set local role authenticated;
+  insert into public.donors (full_name, cpr, source, slot_id, consent) values ('Desk After', '777000012', 'walk_in', 1, true) returning id into did;
+  select * into ci from public.check_in_donor(did);
+  reset role;
+  perform t.chk('desk check-in continues the same sequence', ci.queue_number::text, (n0 + 2)::text);
+  perform t.chk('event_start_time default', (select event_start_time::text from public.event), '08:30:00');
+
+  -- W5: raised and lowered queue start
+  update public.event set queue_start = n0 + 100;
+  set local role service_role;
+  select * into r from public.register_walk_in_donor('Walk R','777000013','1990-01-01','33335557',null,'unknown',false,false,false,'{}');
+  reset role;
+  perform t.chk('raised start: walk-in jumps to it', r.queue_number::text, (n0 + 100)::text);
+  perform set_config('request.jwt.claim.sub', adm, true);
+  set local role authenticated;
+  insert into public.donors (full_name, cpr, source, slot_id, consent) values ('Desk Later', '777000014', 'walk_in', 1, true) returning id into did;
+  select * into ci from public.check_in_donor(did);
+  reset role;
+  perform t.chk('raised start: next check-in continues', ci.queue_number::text, (n0 + 101)::text);
+  update public.event set queue_start = 1;
+  set local role authenticated;
+  insert into public.donors (full_name, cpr, source, slot_id, consent) values ('Desk Lowered', '777000015', 'walk_in', 1, true) returning id into did;
+  select * into ci from public.check_in_donor(did);
+  reset role;
+  perform t.chk('lowered start: no repeats', ci.queue_number::text, (n0 + 102)::text);
+  update public.event set queue_start = 1;
+  perform t.chk('queue_start default', (select queue_start::text from public.event), '1');
+  perform t.chk('queue_start 0 violates the check', t.attempt(current_user, null, $q$update public.event set queue_start = 0$q$), 'error:23514');
+end $$;
+
 select 'FAIL' r, name, detail from t.results where not ok;
 select count(*) filter (where ok) as passed, count(*) filter (where not ok) as failed from t.results;

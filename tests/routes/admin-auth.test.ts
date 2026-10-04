@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   adminRow: null as null | { display_name: string },
   calls: [] as string[],
   sendDonorEmail: vi.fn(),
+  createAdmin: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -26,6 +27,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/db/admins", () => ({ createAdmin: h.createAdmin }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: h.sendDonorEmail }));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: async () => {
@@ -84,9 +86,15 @@ const guarded: Record<string, () => Promise<unknown>> = {
   deleteDonor: () => actions.deleteDonor(ID),
   resendEmail: () => actions.resendEmail(ID),
   updateEvent: () => actions.updateEvent(prev, fd({ nameAr: "a", nameEn: "b" })),
+  updateQueueStart: () => actions.updateQueueStart(prev, fd({ queue_start: "250" })),
   createSlot: () => actions.createSlot(prev, fd({ time: "14:00", capacity: "10" })),
   updateSlot: () => actions.updateSlot({ slotId: 1, capacity: 5, active: true }),
   deleteSlot: () => actions.deleteSlot(1),
+  addAdmin: () =>
+    actions.addAdmin(
+      prev,
+      fd({ email: "new@example.org", displayName: "New", password: "NewPassw0rd!x", confirm: "NewPassw0rd!x" }),
+    ),
   changePassword: () => actions.changePassword(prev, fd({ password: "NewPassw0rd!x", confirm: "NewPassw0rd!x" })),
 };
 
@@ -114,6 +122,7 @@ describe.each(Object.entries(guarded))("%s", (name, call) => {
     await expect(call()).rejects.toMatchObject({ to: "/admin/login" });
     expect(h.calls.filter((c) => MUTATING.test(c))).toEqual([]);
     expect(h.sendDonorEmail).not.toHaveBeenCalled();
+    expect(h.createAdmin).not.toHaveBeenCalled();
     void name;
   });
   it("rejects a signed-in non-admin, signs them out and writes nothing", async () => {
@@ -123,6 +132,7 @@ describe.each(Object.entries(guarded))("%s", (name, call) => {
     expect(h.calls).toContain("auth.signOut");
     expect(h.calls.filter((c) => MUTATING.test(c))).toEqual([]);
     expect(h.sendDonorEmail).not.toHaveBeenCalled();
+    expect(h.createAdmin).not.toHaveBeenCalled();
   });
 });
 

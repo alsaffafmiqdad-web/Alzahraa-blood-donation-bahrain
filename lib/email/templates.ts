@@ -1,6 +1,6 @@
 import "server-only";
 import { formatDate, formatSlot } from "@/lib/format";
-import type { DonorCardData } from "@/lib/pdf/DonorCard";
+import type { DonorCardData } from "@/lib/pdf/donor-card-pdf";
 import { ar } from "@/lib/i18n/dictionaries/ar";
 import { en } from "@/lib/i18n/dictionaries/en";
 import { t, type Dictionary, type Locale } from "@/lib/i18n";
@@ -25,6 +25,7 @@ function lines(data: DonorCardData, locale: Locale, d: Dictionary): Line[] {
   const location = locale === "ar" ? data.event.location_ar : data.event.location_en;
   if (location) out.push({ label: d.email.location, value: location });
   if (data.slotTime) out.push({ label: d.email.time, value: formatSlot(data.slotTime, locale) });
+  if (data.queueNumber !== null) out.push({ label: d.email.queue, value: `#${data.queueNumber}` });
   out.push({ label: d.email.ref, value: `#${data.ref}` });
   return out;
 }

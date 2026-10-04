@@ -99,11 +99,15 @@ begin
   call t.check('anon check_in_donor', t.attempt('anon', null, $q$select * from public.check_in_donor(gen_random_uuid())$q$), 'denied');
   call t.check('anon slot_availability', t.attempt('anon', null, 'select * from public.slot_availability()'), 'denied');
   call t.check('anon register_donor', t.attempt('anon', null, $q$select public.register_donor('x','333333333',null,null,null,'unknown',1::smallint,false,false,false,'{}')$q$), 'denied');
+  call t.check('anon register_walk_in_donor', t.attempt('anon', null, $q$select * from public.register_walk_in_donor('x','444444445',null,null,null,'unknown',false,false,false,'{}')$q$), 'denied');
+  call t.check('anon next_queue_number', t.attempt('anon', null, 'select public.next_queue_number()'), 'denied');
   call t.check('anon claim_email_send', t.attempt('anon', null, $q$select public.claim_email_send(null,100)$q$), 'denied');
   call t.check('anon finish_email_send', t.attempt('anon', null, $q$select public.finish_email_send(1,true,null)$q$), 'denied');
   call t.check('anon rate_limit_hit', t.attempt('anon', null, $q$select public.rate_limit_hit('a',5,60)$q$), 'denied');
   call t.check('anon daily_maintenance', t.attempt('anon', null, 'select public.daily_maintenance()'), 'denied');
   call t.check('authed register_donor', t.attempt('authenticated', 'aaaaaaaa-0000-4000-8000-000000000001', $q$select public.register_donor('x','333333333',null,null,null,'unknown',1::smallint,false,false,false,'{}')$q$), 'denied');
+  call t.check('authed register_walk_in_donor', t.attempt('authenticated', 'aaaaaaaa-0000-4000-8000-000000000001', $q$select * from public.register_walk_in_donor('x','444444445',null,null,null,'unknown',false,false,false,'{}')$q$), 'denied');
+  call t.check('authed next_queue_number', t.attempt('authenticated', 'aaaaaaaa-0000-4000-8000-000000000001', 'select public.next_queue_number()'), 'denied');
   call t.check('authed slot_availability', t.attempt('authenticated', 'aaaaaaaa-0000-4000-8000-000000000001', 'select * from public.slot_availability()'), 'denied');
   call t.check('authed claim_email_send', t.attempt('authenticated', 'aaaaaaaa-0000-4000-8000-000000000001', $q$select public.claim_email_send(null,100)$q$), 'denied');
   call t.check('authed rate_limit_hit', t.attempt('authenticated', 'aaaaaaaa-0000-4000-8000-000000000001', $q$select public.rate_limit_hit('a',5,60)$q$), 'denied');
@@ -111,6 +115,7 @@ begin
   call t.check('non-admin check_in_donor -> not_authorized',
     t.attempt('authenticated', 'bbbbbbbb-0000-4000-8000-000000000002', $q$select * from public.check_in_donor((select id from public.donors limit 1))$q$), 'error:P0001');
   call t.check('service_role register_donor ok', t.attempt('service_role', null, $q$select public.register_donor('Svc','444444444','1990-01-01','33334444','a@b.com','O+',1::smallint,false,false,false,'{}')$q$), 'rows=1');
+  call t.check('service_role register_walk_in_donor ok', t.attempt('service_role', null, $q$select * from public.register_walk_in_donor('Svc W','444444445','1990-01-01','33334445',null,'O+',false,false,false,'{}')$q$), 'rows=1');
   call t.check('service_role slot_availability ok', t.attempt('service_role', null, 'select * from public.slot_availability()'), 'rows=11');
 end $$;
 

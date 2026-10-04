@@ -8,7 +8,7 @@ const NAV = [
   { href: "/admin/donors/new", label: "Add donor" },
   { href: "/admin/slots", label: "Slots" },
   { href: "/admin/event", label: "Event" },
-  { href: "/admin/account", label: "Account" },
+  { href: "/admin/account", label: "Settings" },
 ];
 
 export function AdminShell({

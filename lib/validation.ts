@@ -101,6 +101,10 @@ export type SignupInput = z.infer<typeof signupSchema>;
 /** Same schema without the Turnstile token, for client-side validation. */
 export const signupClientSchema = signupSchema.omit({ token: true });
 
+/** Walk-in mode (decided by the server): no time is chosen. A slotId sent by a page loaded before the start time is accepted and ignored. */
+export const signupWalkInSchema = z.strictObject({ ...signupSchema.shape, slotId: z.unknown().optional() });
+export const signupWalkInClientSchema = signupWalkInSchema.omit({ token: true });
+
 /* ---------- Admin ---------- */
 
 const triState = z.preprocess(
@@ -168,18 +172,31 @@ export const slotIdSchema = z.number().int().min(1).max(32767);
 
 export const setStatusSchema = z.object({ donorId: z.uuid(), status: statusSchema });
 
+const timeField = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: "Enter a time as HH:MM" });
+
 export const eventSchema = z.object({
   name_ar: z.string().trim().min(1).max(200),
   name_en: z.string().trim().min(1).max(200),
   location_ar: z.string().trim().max(200),
   location_en: z.string().trim().max(200),
   event_date: z.iso.date(),
+  event_start_time: timeField,
   public_registration_open: checkbox,
 });
 
-const timeField = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: "Enter a time as HH:MM" });
+const QUEUE_START_MSG = "Queue start must be a whole number from 1 to 99999";
+export const queueStartSchema = z.object({
+  queue_start: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
+    z
+      .number({ error: QUEUE_START_MSG })
+      .int({ error: QUEUE_START_MSG })
+      .min(1, { error: QUEUE_START_MSG })
+      .max(99999, { error: QUEUE_START_MSG }),
+  ),
+});
 
 const capacityField = z.preprocess(
   (v) => (typeof v === "string" ? Number(v) : v),
@@ -195,6 +212,25 @@ export const updateSlotSchema = z.object({
 
 export const passwordSchema = z
   .object({
+    password: z.string().min(12, { error: "Password must be at least 12 characters" }).max(128),
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, { path: ["confirm"], error: "Passwords do not match" });
+
+export const addAdminSchema = z
+  .object({
+    email: z
+      .preprocess(trimmed, z.email({ error: "Enter a valid email address" }).max(254))
+      .transform((s) => s.toLowerCase()),
+    displayName: z
+      .string()
+      .transform(cleanName)
+      .pipe(
+        z
+          .string()
+          .min(1, { error: "Enter a display name" })
+          .max(60, { error: "Display name must be 60 characters or fewer" }),
+      ),
     password: z.string().min(12, { error: "Password must be at least 12 characters" }).max(128),
     confirm: z.string(),
   })

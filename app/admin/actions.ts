@@ -7,16 +7,20 @@ import { requireAdmin } from "@/lib/auth";
 import { checkInNotice } from "@/lib/check-in-notice";
 import { parseFilters, urlSafeSearch, type Status } from "@/lib/donor-filters";
 import { sendDonorEmail, type EmailOutcome } from "@/lib/email/dispatch";
+import { CPR_IMAGE_BUCKET } from "@/lib/cpr-image";
+import { createAdmin } from "@/lib/db/admins";
 import { formatDateShort } from "@/lib/format";
 import { en } from "@/lib/i18n/dictionaries/en";
 import { computeFlags } from "@/lib/screening";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
+  addAdminSchema,
   adminDonorSchema,
   createSlotSchema,
   donorIdSchema,
   editDonorSchema,
   eventSchema,
+  queueStartSchema,
   loginSchema,
   passwordSchema,
   setStatusSchema,
@@ -304,10 +308,18 @@ export async function deleteDonor(donorId: string): Promise<SimpleResult> {
   const { supabase } = await requireAdmin();
   const id = donorIdSchema.safeParse(donorId);
   if (!id.success) return { ok: false, error: "Invalid donor" };
+  const { data: existing } = await supabase.from("donors").select("cpr_image_path").eq("id", id.data).maybeSingle();
+  const imagePath = (existing as { cpr_image_path: string | null } | null)?.cpr_image_path ?? null;
   const { error } = await supabase.from("donors").delete().eq("id", id.data);
   if (error) {
     console.error(`deleteDonor failed donor=${id.data}: ${error.message}`);
     return { ok: false, error: "Could not delete the donor" };
+  }
+  if (imagePath) {
+    const { error: removeError } = await supabase.storage.from(CPR_IMAGE_BUCKET).remove([imagePath]);
+    if (removeError) {
+      console.error(`deleteDonor: cpr image remove failed donor=${id.data}: ${removeError.message}`);
+    }
   }
   revalidatePath("/admin");
   return { ok: true };
@@ -337,6 +349,19 @@ export async function updateEvent(_prev: FormState, formData: FormData): Promise
   revalidatePath("/admin/event");
   revalidatePath("/admin");
   return { ok: true, message: "Event saved" };
+}
+
+export async function updateQueueStart(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { supabase } = await requireAdmin();
+  const parsed = queueStartSchema.safeParse(formToObject(formData));
+  if (!parsed.success) return { ok: false, ...issueMessages(parsed.error) };
+  const { error } = await supabase.from("event").update({ queue_start: parsed.data.queue_start }).eq("id", true);
+  if (error) {
+    console.error(`updateQueueStart failed: ${error.message}`);
+    return { ok: false, error: "Could not save the queue start" };
+  }
+  revalidatePath("/admin/event");
+  return { ok: true, message: "Queue start saved" };
 }
 
 /* ---------------- slots ---------------- */
@@ -393,4 +418,24 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { ok: false, error: error.message };
   return { ok: true, message: "Password updated" };
+}
+
+export async function addAdmin(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const parsed = addAdminSchema.safeParse(formToObject(formData));
+  if (!parsed.success) return { ok: false, ...issueMessages(parsed.error) };
+  const result = await createAdmin(parsed.data);
+  if (!result.ok) {
+    if (result.reason === "email_exists") {
+      const msg = "An account with this email already exists.";
+      return { ok: false, error: msg, fieldErrors: { email: msg } };
+    }
+    return { ok: false, error: "Could not add the admin. Please try again." };
+  }
+  revalidatePath("/admin/account");
+  return {
+    ok: true,
+    message:
+      "Admin added. Share the temporary password privately. They should change it in Settings after signing in.",
+  };
 }

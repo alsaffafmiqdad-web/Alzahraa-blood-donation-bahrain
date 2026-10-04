@@ -57,6 +57,14 @@ beforeEach(() => {
     slotTime: "09:30:00",
     createdAt: "2026-10-03T10:00:00Z",
     event: { name_ar: "a", name_en: "b", location_ar: "", location_en: "", event_date: "2026-10-16" },
+    cpr: "990101123",
+    dob: "1990-05-05",
+    phone: "33334444",
+    source: "self_signup",
+    queueNumber: null,
+    flagged: false,
+    flagReasons: [],
+    notes: null,
   };
 });
 
@@ -91,8 +99,11 @@ describe("POST /api/card", () => {
     expect(res.headers.get("content-disposition")).toContain('filename="donor-card.pdf"');
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("%PDF-fake");
-    expect(h.renders[0]).toMatchObject({ fullName: "علي حسن", bloodType: "O+", ref: "ABCDEF12" });
-    expect(JSON.stringify(h.renders[0])).not.toMatch(/cpr/i);
+    // Owner decision: the donor's PDF is the A4 registration form, full CPR included.
+    expect(h.renders[0]).toMatchObject({
+      donor: { fullName: "علي حسن", bloodType: "O+", ref: "ABCDEF12", cpr: "990101123", source: "self_signup" },
+      event: { event_date: "2026-10-16" },
+    });
   });
   it("refuses bad, expired or missing tokens without rendering", async () => {
     expect((await post({ token: "nope" })).status).toBe(403);
