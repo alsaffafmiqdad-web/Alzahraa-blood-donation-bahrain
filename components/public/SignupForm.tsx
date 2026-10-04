@@ -501,7 +501,8 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn }:
         </div>
       </div>
 
-      <fieldset disabled={!hydrated} className="contents">
+      {/* A real box, not display:contents: the form's spacing only reaches its own children, and gap skips hidden steps. */}
+      <fieldset disabled={!hydrated} className="flex min-w-0 flex-col gap-6">
         {!hydrated && (
           <p role="status" className="text-sm text-ink-soft">
             {dict.join.loading}
@@ -842,7 +843,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn }:
             {dict.join.enter_hint}
           </span>
         </div>
-        <p aria-live="polite" className="text-center text-sm text-ink-soft">
+        <p aria-live="polite" className="-mt-3 text-center text-sm text-ink-soft">
           {slow && dict.join.slow}
         </p>
       </fieldset>
