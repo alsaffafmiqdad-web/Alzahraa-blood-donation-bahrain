@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarDays, Loader2 } from "lucide-react";
 import { BLOOD_TYPES, AGE_MAX, AGE_MIN } from "@/lib/config";
 import { cprInput, phoneInput } from "@/lib/cpr";
-import { shouldAdvance } from "@/lib/auto-advance";
+import { shouldAdvance, typingCountryCode } from "@/lib/auto-advance";
 import { cleanDobPart, composeDob, dobExample, dobPartsError, isoToDobParts } from "@/lib/dob";
 import { reportClientError } from "@/lib/client-log";
 import { keyboardInset } from "@/lib/keyboard-inset";
@@ -1046,7 +1046,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                 const value = phoneInput(el.value);
                 const atEnd = el.selectionStart === el.value.length;
                 set("phone", value);
-                if (shouldAdvance(value, v.phone, 8, atEnd)) emailRef.current?.focus();
+                if (!typingCountryCode(el.value) && shouldAdvance(value, v.phone, 8, atEnd)) emailRef.current?.focus();
               }}
               onBlur={(e) => markLength("phone", phoneInput(e.currentTarget.value), 8, "phone_invalid")}
               aria-required="true"
