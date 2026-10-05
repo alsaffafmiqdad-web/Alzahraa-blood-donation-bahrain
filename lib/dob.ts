@@ -1,6 +1,7 @@
 /* Isomorphic and pure: the three date-of-birth fields of the signup form. */
 import { AGE_MIN } from "@/lib/config";
 import { toAsciiDigits } from "@/lib/cpr";
+import { isRealDate } from "@/lib/validation";
 
 export type DobParts = { day: string; month: string; year: string };
 
@@ -32,4 +33,11 @@ export function dobExample(eventDate: string, minAge: number = AGE_MIN): DobPart
     if (!leap) day = 28;
   }
   return { day: String(day).padStart(2, "0"), month: String(m).padStart(2, "0"), year: String(year).padStart(4, "0") };
+}
+
+/** "YYYY-MM-DD" (a real date) to zero-padded parts; null for "" or anything invalid. */
+export function isoToDobParts(iso: string): DobParts | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m || !isRealDate(iso)) return null;
+  return { year: m[1]!, month: m[2]!, day: m[3]! };
 }

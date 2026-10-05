@@ -62,3 +62,16 @@ describe("draft photo cap and quota", () => {
     expect(startOver.slice(0, 200)).toMatch(/safeRemove\(DRAFT_KEY\);\s*safeRemove\(DRAFT_PHOTO_KEY\)/);
   });
 });
+
+describe("length errors read the live input value", () => {
+  it("CPR and phone onBlur use the event value, not the render closure", () => {
+    expect(form).toContain('markLength("cpr", cprInput(e.currentTarget.value)');
+    expect(form).toContain('markLength("phone", phoneInput(e.currentTarget.value)');
+    expect(form).not.toContain('markLength("cpr", v.cpr');
+    expect(form).not.toContain('markLength("phone", v.phone');
+  });
+  it("the date picker is capped at the event date, not the under-18 date", () => {
+    expect(form).toContain("max={eventDate}");
+    expect(form).not.toContain('max="2008-10-16"');
+  });
+});

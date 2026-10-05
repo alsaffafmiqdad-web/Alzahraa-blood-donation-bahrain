@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cleanDobPart, composeDob, dobExample, dobPartsError } from "@/lib/dob";
+import { cleanDobPart, composeDob, dobExample, dobPartsError, isoToDobParts } from "@/lib/dob";
 
 describe("dob", () => {
+  it("isoToDobParts splits a real date and rejects the rest", () => {
+    expect(isoToDobParts("1990-03-05")).toEqual({ day: "05", month: "03", year: "1990" });
+    expect(isoToDobParts("")).toBeNull();
+    expect(isoToDobParts("1990-02-30")).toBeNull();
+    expect(isoToDobParts("abc")).toBeNull();
+  });
   it("cleanDobPart converts Arabic digits and cuts to max", () => {
     expect(cleanDobPart("٢٠٠٨٩", 4)).toBe("2008");
     expect(cleanDobPart("1a2b3", 2)).toBe("12");
