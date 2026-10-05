@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { errorsForStep, photoRequired, signupSteps, stepOfField } from "@/lib/signup-steps";
+import { STEP_IDS, errorsForStep, photoRequired, signupSteps, stepOfField, stepShift } from "@/lib/signup-steps";
 
 describe("signup steps", () => {
   it("slot mode has 8 steps in order", () => {
@@ -28,5 +28,14 @@ describe("signup steps", () => {
   it("requires the photo only in slot mode", () => {
     expect(photoRequired(false)).toBe(true);
     expect(photoRequired(true)).toBe(false);
+  });
+  it("stepShift mirrors in rtl", () => {
+    expect(stepShift("forward", "ltr")).toBe(24);
+    expect(stepShift("forward", "rtl")).toBe(-24);
+    expect(stepShift("back", "ltr")).toBe(-24);
+    expect(stepShift("back", "rtl")).toBe(24);
+  });
+  it("STEP_IDS matches the slot-mode steps", () => {
+    expect([...STEP_IDS]).toEqual(signupSteps(false));
   });
 });

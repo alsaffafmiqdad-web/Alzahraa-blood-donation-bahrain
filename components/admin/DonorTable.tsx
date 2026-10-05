@@ -73,7 +73,7 @@ export function DonorTable({ rows, totalCount }: { rows: DonorListRow[]; totalCo
             <TableRow key={r.id}>
               <TableCell className="text-ink-soft">{r.seq}</TableCell>
               <TableCell className="font-medium">
-                <Link href={`/admin/donors/${r.id}`} className="text-crimson hover:underline" dir="auto">
+                <Link href={`/admin/donors/${r.id}`} className="text-brand hover:underline" dir="auto">
                   {r.fullName}
                 </Link>
               </TableCell>

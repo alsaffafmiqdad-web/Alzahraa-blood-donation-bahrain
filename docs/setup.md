@@ -43,11 +43,19 @@ pnpm dlx supabase db push
 
 If you ever paste a migration into the SQL editor instead, record it as applied with `supabase migration repair --status applied <version>`, or the next automatic deploy will try to apply it again and fail. Migrations are forward only: to undo one, write a new migration.
 
-## Resend (email)
+## Email (Gmail, with Resend as fallback)
 
-Verify a sending domain (SPF and DKIM), create an API key, and set `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Without them, signups still work and emails stay queued.
+**Gmail (preferred).** Create a Gmail account just for the drive, turn on 2-Step Verification, and add a second organiser as a recovery contact. Then create an app password (Google Account > Security > App passwords) and set `GMAIL_USER`, `GMAIL_APP_PASSWORD` and, optionally, `GMAIL_FROM_NAME`. Never use the normal account password. Changing the Google password revokes its app passwords. Mail is always sent From the Gmail address; Reply-To is the organisation contact email.
 
-The free plan allows 100 emails a day. The app keeps a rolling 24-hour budget (`EMAIL_DAILY_BUDGET`, default 95). A signup sends straight away if the budget allows; otherwise the email waits for the daily cron, which retries the oldest first and gives up on a donor after 5 failed attempts. The admin "Send email" button sends one immediately, still within the budget.
+**Resend (fallback).** Verify a sending domain (SPF and DKIM), create an API key, and set `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. It is used only when the Gmail variables are not set. `EMAIL_PROVIDER` (`gmail` or `resend`) forces one of them.
+
+Without either, signups still work and emails stay queued.
+
+The app keeps a rolling 24-hour budget (`EMAIL_DAILY_BUDGET`). If you leave it empty the default is 450 for Gmail (Gmail allows about 500 a day, shared with any manual sending from the account) and 95 for Resend (free plan: 100). A signup sends straight away if the budget allows; otherwise the email waits for the daily cron, which retries the oldest first and gives up on a donor after 5 failed attempts. The admin "Send email" button sends one immediately, still within the budget.
+
+### Discord alerts
+
+Create a webhook in a private Discord channel and set `DISCORD_WEBHOOK_URL` (server only). Alerts contain only event names, error codes and donor IDs, never a name, CPR, phone number or email. They are deduplicated: one per kind every 5 minutes, and at most 10 a minute per server instance.
 
 ## Cloudflare Turnstile
 

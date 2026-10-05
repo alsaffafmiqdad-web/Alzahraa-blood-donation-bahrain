@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   emailBudgetRemaining: vi.fn(),
   sendDonorEmail: vi.fn(),
 }));
+const reportAlert = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/alert", () => ({ reportAlert }));
 vi.mock("@/lib/db/maintenance", () => ({ ping: m.ping, dailyMaintenance: m.dailyMaintenance }));
 vi.mock("@/lib/db/email", () => ({
   listRetryCandidates: m.listRetryCandidates,
@@ -52,6 +54,12 @@ describe("GET /api/cron/daily", () => {
     expect(body.retry).toEqual({ attempted: 2, sent: 2, failed: 0, stoppedForBudget: false, stoppedForTime: false });
     expect(m.ping).toHaveBeenCalled();
     expect(m.dailyMaintenance).toHaveBeenCalled();
+  });
+  it("reports a failing step as cron_step_failed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.ping.mockRejectedValue(new Error("down"));
+    await get("Bearer s3cret-value");
+    expect(reportAlert).toHaveBeenCalledWith({ event: "cron_step_failed", code: "ping", detail: "down" });
   });
   it("the per-run cap is whatever is left of the rolling budget", async () => {
     m.emailBudgetRemaining.mockResolvedValue(17);

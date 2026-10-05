@@ -55,4 +55,13 @@ describe("CprImageField", () => {
     expect(html).toContain("Custom label");
     expect(html).not.toContain(dict.join.cpr_image_hint);
   });
+  it("renders a dashed drop area and a screen-reader-only input", () => {
+    const html = renderToStaticMarkup(
+      <CprImageField dict={getDictionary("en")} value={null} onChange={() => {}} onBusyChange={() => {}} />,
+    );
+    expect(html).toContain("border-dashed");
+    expect(html.match(/<input[^>]*>/)?.[0]).toContain("sr-only");
+    expect(html.match(/for="f-cprImage"/g)).toHaveLength(2);
+    expect(html).not.toContain("disabled");
+  });
 });

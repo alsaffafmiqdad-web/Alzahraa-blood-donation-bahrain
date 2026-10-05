@@ -27,7 +27,7 @@ export default async function EventPage() {
           </section>
         </>
       ) : (
-        <p className="text-crimson">Could not load the event.</p>
+        <p className="text-danger">Could not load the event.</p>
       )}
     </AdminShell>
   );

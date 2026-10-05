@@ -164,7 +164,7 @@ export default async function DonorDetailPage({
             <img src={imageUrl} alt="CPR card photo" className="max-h-72 rounded border border-line" />
           </a>
         ) : (
-          <p className="text-sm text-crimson">Could not load the photo.</p>
+          <p className="text-sm text-danger">Could not load the photo.</p>
         )}
       </section>
 

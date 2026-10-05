@@ -15,7 +15,7 @@ export function cleanName(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-function isRealDate(iso: string): boolean {
+export function isRealDate(iso: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return false;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
@@ -60,8 +60,12 @@ const dobString = z
     z.string().superRefine((s, ctx) => {
       if (s === "") {
         ctx.addIssue({ code: "custom", message: "dob_required" });
-      } else if (!(isRealDate(s) && s >= "1900-01-01" && s <= todayUtcIso())) {
+      } else if (!isRealDate(s)) {
         ctx.addIssue({ code: "custom", message: "dob_invalid" });
+      } else if (s < "1900-01-01") {
+        ctx.addIssue({ code: "custom", message: "dob_too_old" });
+      } else if (s > todayUtcIso()) {
+        ctx.addIssue({ code: "custom", message: "dob_future" });
       }
     }),
   );
@@ -95,6 +99,7 @@ export const signupSchema = z.strictObject({
   onMedication: answerField,
   consent: z.literal(true, { error: "consent_required" }),
   token: z.string({ error: "turnstile" }).max(4096, { error: "turnstile" }),
+  submissionId: z.uuid({ error: "server" }).optional(),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 

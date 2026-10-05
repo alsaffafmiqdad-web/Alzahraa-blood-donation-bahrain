@@ -45,6 +45,8 @@ export type RegisterDonorInput = {
   onMedication: boolean;
   flagged: boolean;
   flagReasons: string[];
+  /** Idempotency key of one registration (all attempts of it share the id). */
+  submissionId?: string;
 };
 
 export type RegisterResult =
@@ -65,6 +67,7 @@ export async function registerDonor(input: RegisterDonorInput): Promise<Register
     p_q_on_medication: input.onMedication,
     p_flagged: input.flagged,
     p_flag_reasons: input.flagReasons,
+    p_submission_id: input.submissionId ?? null,
   };
   const walkIn = input.slotId === null;
   const fn = walkIn ? "register_walk_in_donor" : "register_donor";
@@ -84,4 +87,43 @@ export async function registerDonor(input: RegisterDonorInput): Promise<Register
   }
   if (typeof data !== "string") throw new Error("register_donor returned no id");
   return { ok: true, id: data, queueNumber: null };
+}
+
+export type PriorSubmission = {
+  id: string;
+  cpr: string;
+  slotId: number | null;
+  queueNumber: number | null;
+  email: string | null;
+  emailSent: boolean;
+  hasImage: boolean;
+};
+
+/** Filters on submission_id only, never CPR (no PII in the PostgREST URL). */
+export async function findSubmission(submissionId: string): Promise<PriorSubmission | null> {
+  const { data, error } = await createSupabaseAdminClient()
+    .from("donors")
+    .select("id, cpr, slot_id, queue_number, email, email_sent, cpr_image_path")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  if (error) throw new Error(`findSubmission failed: ${error.message}`);
+  if (!data) return null;
+  const r = data as {
+    id: string;
+    cpr: string;
+    slot_id: number | null;
+    queue_number: number | null;
+    email: string | null;
+    email_sent: boolean | null;
+    cpr_image_path: string | null;
+  };
+  return {
+    id: r.id,
+    cpr: r.cpr,
+    slotId: r.slot_id,
+    queueNumber: r.queue_number,
+    email: r.email,
+    emailSent: !!r.email_sent,
+    hasImage: !!r.cpr_image_path,
+  };
 }

@@ -12,7 +12,14 @@
   --color-crimson: #9c1f2e;
   --color-crimson-dark: #7a1622;
   --color-blush: #f1dad2;
+  --color-brand: #6b2c6b; /* about 9.5:1 with white text */
+  --color-brand-dark: #561f56;
+  --color-brand-tint: #f3e6f3;
+  --color-danger: #b42318; /* about 6.6:1 on white */
+  --color-danger-dark: #912018;
+  --color-danger-tint: #fef3f2;
   --color-line: #e1d5c6;
+  --color-line-strong: #8c8279; /* about 3.8:1 on white: borders meet WCAG 1.4.11 */
   --color-success: #2f6b4f;
   --color-flag-bg: #f6d9a6;
   --color-flag-ink: #7a4a00;
@@ -55,19 +62,28 @@
   --card-foreground: #241f1c;
   --popover: #ffffff;
   --popover-foreground: #241f1c;
-  --primary: #9c1f2e;
+  --primary: #6b2c6b;
   --primary-foreground: #ffffff;
   --secondary: #f3ece3;
   --secondary-foreground: #241f1c;
   --muted: #f3ece3;
   --muted-foreground: #6b6259;
-  --accent: #f1dad2;
+  --accent: #f3e6f3;
   --accent-foreground: #241f1c;
   --destructive: #b42318;
   --border: #e1d5c6;
   --input: #e1d5c6;
-  --ring: #9c1f2e;
+  --ring: #6b2c6b;
   --radius: 0.625rem;
+}
+
+@utility font-swash {
+  font-feature-settings: "swsh" 1;
+}
+
+html {
+  scroll-padding-top: 4.5rem;
+  scroll-padding-bottom: 6.5rem;
 }
 
 @layer base {

@@ -6,6 +6,9 @@ export const AGE_MIN = 18;
 export const AGE_MAX = 65;
 export const SIGNUP_RATE_LIMIT = { limit: 25, windowSeconds: 600 };
 export const EMAIL_MAX_ATTEMPTS = 5;
+/** Default emails per rolling 24h: Gmail allows about 500, Resend free plan 100. */
+export const GMAIL_DEFAULT_BUDGET = 450;
+export const RESEND_DEFAULT_BUDGET = 95;
 /** Cron: stop starting new emails after this many ms (maxDuration is 300 s; leave room to finish in-flight sends). */
 export const CRON_SOFT_DEADLINE_MS = 240_000;
 export const EMAIL_CONCURRENCY = 5;

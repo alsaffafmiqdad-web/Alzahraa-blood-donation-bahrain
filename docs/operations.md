@@ -39,12 +39,13 @@ When the retention period ends:
 1. In the Supabase SQL editor, run `delete from public.donors;`, or delete the whole Supabase project.
 2. Empty the `cpr-images` bucket in Supabase > Storage. Deleting donors doesn't remove their photos.
 3. Delete every exported CSV and any downloaded or emailed sample PDFs.
+4. Delete the confirmation emails in the Gmail account's Sent folder, plus replies and bounces.
 
 ## Before launch
 
 - [ ] The blood bank confirms the two screening questions, the age range (`AGE_MIN` and `AGE_MAX` in `lib/config.ts`) and the slot capacities.
-- [ ] Data protection (PDPL) review of the consent wording, where the data is stored (the Supabase region, plus the US for Vercel and Resend) and the retention period. Note that the CPR card photo is stored, and that the donor's PDF, sent by download and email, includes their full CPR, flags and notes.
-- [ ] All service accounts (Supabase, Vercel, Resend, Cloudflare) belong to an organisation email, not a personal one.
+- [ ] Data protection (PDPL) review of the consent wording, where the data is stored (the Supabase region, plus the US for Vercel, Google (Gmail) and Resend) and the retention period. Note that the CPR card photo is stored, and that the donor's PDF, sent by download and email, includes their full CPR, flags and notes. Gmail's Sent folder keeps every donor PDF (full CPR, flags, notes).
+- [ ] The email account is a dedicated drive Gmail account with 2-Step Verification, accessible to the organisers only (not anyone's personal inbox). The other service accounts (Supabase, Vercel, Resend, Cloudflare) also belong to an organisation email.
 - [ ] Vercel Hobby is for non-commercial use; confirm that fits the organiser.
 - [ ] A domain is added in Vercel, set as `NEXT_PUBLIC_SITE_URL`, added to the Turnstile widget and verified in Resend.
 - [ ] Every variable from `.env.example` is set in Vercel with exactly the same name, and the organisation name and contact details are filled in.

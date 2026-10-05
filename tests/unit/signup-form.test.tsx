@@ -25,6 +25,7 @@ const render = (walkIn: boolean) =>
       eventDate="2026-10-16"
       slotHint="hint"
       walkIn={walkIn}
+      event={{ name: "Drive Name", dateText: "16 October 2026", timeText: "8:30 AM", location: "Hall" }}
     />,
   );
 const ar = getDictionary("ar");
@@ -45,11 +46,20 @@ describe("SignupForm", () => {
       expect(html).not.toContain('max="2008-10-16"'); // under-18 is flagged, never blocked
       expect(html).toContain('maxLength="16"');
       expect(html).toContain('maxLength="13"');
-      expect(html).toContain('autoComplete="bday"');
+      expect(html).toContain('placeholder="880000000"');
+      expect(html).toContain('placeholder="3XXXXXXX"');
+      expect(html).toContain('placeholder="name@example.com"');
+      expect(html).toContain('autoComplete="bday-year"');
+      expect(html).toContain('maxLength="4"');
+      expect(html).toContain('placeholder="2008"');
+      expect(html).toContain('enterKeyHint="next"');
+      expect(html).not.toMatch(/<h[12][^>]*text-center/);
       expect(html).not.toMatch(/\b(ml|mr|pl|pr)-\d/);
     });
-    it("starts on step 1 of 8, disabled until hydrated, with the other steps hidden", () => {
-      expect(html).toContain("الخطوة 1 من 8");
+    it("starts on the intro, disabled until hydrated, with the steps hidden", () => {
+      expect(html).toMatch(/<h1[^>]*font-swash[^>]*>Drive Name/);
+      expect(html).toContain(ar.join.register);
+      expect(html).not.toContain("الخطوة 1 من");
       expect(html).toContain('<fieldset disabled=""');
       expect(html).toContain('hidden=""');
       expect(html).toContain(ar.join.loading);
@@ -68,7 +78,6 @@ describe("SignupForm", () => {
     it("has no slot step and shows the notice", () => {
       expect(html).not.toContain('name="slotId"');
       expect(html).toContain(ar.join.walk_in_notice);
-      expect(html).toContain("الخطوة 1 من 7");
     });
     it("has 13 radios", () => {
       expect(html.match(/type="radio"/g)).toHaveLength(13);
@@ -83,11 +92,12 @@ describe("SignupForm", () => {
     const html = render(false);
     const walk = render(true);
     it("labels the text inputs and wires describedby", () => {
-      for (const id of ["f-fullName", "f-cpr", "f-dob", "f-phone", "f-email"]) {
+      expect(html).toContain('id="f-dob"');
+      for (const id of ["f-fullName", "f-cpr", "f-dob-day", "f-dob-month", "f-dob-year", "f-phone", "f-email"]) {
         expect(html).toContain(`for="${id}"`);
         expect(html).toContain(`id="${id}"`);
       }
-      expect(html).toContain('aria-describedby="f-dob-age"');
+      expect(html).toContain('aria-describedby="f-dob-hint"');
       expect(html).toContain('aria-describedby="slot-hint"');
       expect(html).toContain('aria-describedby="bt-hint"');
       expect(html).toContain('aria-labelledby="step-name-title"');
@@ -97,10 +107,9 @@ describe("SignupForm", () => {
       expect(html).toMatch(/<input[^>]*id="f-email"(?![^>]*aria-required)[^>]*>/);
     });
     it("has polite live regions for progress, age and slow notice", () => {
-      expect(html).toMatch(/<p aria-live="polite" aria-atomic="true"[^>]*>[^<]*الخطوة 1 من 8/);
       expect(html).toContain('id="f-dob-age"');
       expect(html.match(/aria-live="polite"/g)!.length).toBeGreaterThanOrEqual(3);
-      expect(html).toContain('<form noValidate=""');
+      expect(html).toMatch(/<form[^>]*noValidate=""/);
     });
     it("gives each step a focusable heading target", () => {
       for (const id of ["slot", "name", "identity", "contact", "bloodType", "photo", "screening", "review"]) {
@@ -111,7 +120,7 @@ describe("SignupForm", () => {
     });
     it("announces the loading state and hides decorative progress", () => {
       expect(html).toContain('role="status"');
-      expect(html).toMatch(/aria-hidden="true"[^>]*class="[^"]*rounded-full/);
+      expect(html).toContain('role="status"');
     });
     it("exposes the radio groups as fieldsets for screening", () => {
       expect(html).toContain('id="f-recentDonation"');

@@ -81,7 +81,7 @@ export function DonorForm({
                 value={val}
                 checked={regMode === val}
                 onChange={() => setRegMode(val)}
-                className="size-4 accent-crimson"
+                className="size-4 accent-brand"
               />
               {label}
             </label>
@@ -95,17 +95,17 @@ export function DonorForm({
             Full name *
           </label>
           <input id="fullName" name="fullName" className={inputCls} value={v.fullName} onChange={set("fullName")} dir="auto" required />
-          {fe.fullName && <p className="mt-1 text-sm text-crimson">{fe.fullName}</p>}
+          {fe.fullName && <p className="mt-1 text-sm text-danger">{fe.fullName}</p>}
         </div>
         <div>
           <label htmlFor="cpr" className={labelCls}>
             CPR *
           </label>
           <input id="cpr" name="cpr" className={inputCls} inputMode="numeric" maxLength={13} pattern="[0-9]{9}" title="9 digits" value={v.cpr} onChange={(e) => setV((p) => ({ ...p, cpr: cprInput(e.target.value) }))} required />
-          {fe.cpr && <p className="mt-1 text-sm text-crimson">{fe.cpr}</p>}
+          {fe.cpr && <p className="mt-1 text-sm text-danger">{fe.cpr}</p>}
           {state.existing && (
             <p className="mt-1 text-sm">
-              <Link href={`/admin/donors/${state.existing.id}`} className="text-crimson underline">
+              <Link href={`/admin/donors/${state.existing.id}`} className="text-brand underline">
                 Open {state.existing.name}
               </Link>
             </p>
@@ -116,21 +116,21 @@ export function DonorForm({
             Phone
           </label>
           <input id="phone" name="phone" className={inputCls} inputMode="numeric" maxLength={16} pattern="[0-9]{8}" title="8 digits" value={v.phone} onChange={(e) => setV((p) => ({ ...p, phone: phoneInput(e.target.value) }))} />
-          {fe.phone && <p className="mt-1 text-sm text-crimson">{fe.phone}</p>}
+          {fe.phone && <p className="mt-1 text-sm text-danger">{fe.phone}</p>}
         </div>
         <div>
           <label htmlFor="email" className={labelCls}>
             Email
           </label>
           <input id="email" name="email" type="email" className={inputCls} value={v.email} onChange={set("email")} />
-          {fe.email && <p className="mt-1 text-sm text-crimson">{fe.email}</p>}
+          {fe.email && <p className="mt-1 text-sm text-danger">{fe.email}</p>}
         </div>
         <div>
           <label htmlFor="dob" className={labelCls}>
             Date of birth
           </label>
           <input id="dob" name="dob" type="date" className={inputCls} value={v.dob} onChange={set("dob")} />
-          {fe.dob && <p className="mt-1 text-sm text-crimson">{fe.dob}</p>}
+          {fe.dob && <p className="mt-1 text-sm text-danger">{fe.dob}</p>}
         </div>
         <div>
           <label htmlFor="bloodType" className={labelCls}>
@@ -157,7 +157,7 @@ export function DonorForm({
                 </option>
               ))}
             </select>
-            {fe.slotId && <p className="mt-1 text-sm text-crimson">{fe.slotId}</p>}
+            {fe.slotId && <p className="mt-1 text-sm text-danger">{fe.slotId}</p>}
           </div>
         )}
       </div>
@@ -194,19 +194,19 @@ export function DonorForm({
           Notes
         </label>
         <textarea id="notes" name="notes" rows={3} maxLength={1000} className={inputCls} value={v.notes} onChange={set("notes")} dir="auto" />
-        {fe.notes && <p className="mt-1 text-sm text-crimson">{fe.notes}</p>}
+        {fe.notes && <p className="mt-1 text-sm text-danger">{fe.notes}</p>}
       </div>
 
       {mode === "add" && (
         <div className="space-y-2">
           <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="consent" defaultChecked className="mt-0.5 size-4 accent-crimson" />
+            <input type="checkbox" name="consent" defaultChecked className="mt-0.5 size-4 accent-brand" />
             <span>{CONSENT_TEXT}</span>
           </label>
-          {fe.consent && <p className="text-sm text-crimson">{fe.consent}</p>}
+          {fe.consent && <p className="text-sm text-danger">{fe.consent}</p>}
           {regMode === "walk_in" && (
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="checkInNow" defaultChecked className="size-4 accent-crimson" />
+              <input type="checkbox" name="checkInNow" defaultChecked className="size-4 accent-brand" />
               Check in now
             </label>
           )}
@@ -214,12 +214,12 @@ export function DonorForm({
       )}
 
       {state.error && !state.existing && (
-        <p role="alert" className="rounded-md bg-blush px-3 py-2 text-sm text-crimson-dark">
+        <p role="alert" className="rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-dark">
           {state.error}
         </p>
       )}
       {state.existing && (
-        <p role="alert" className="rounded-md bg-blush px-3 py-2 text-sm text-crimson-dark">
+        <p role="alert" className="rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-dark">
           {mode === "add" ? (
             <>
               This CPR is already registered for {state.existing.name}.{" "}

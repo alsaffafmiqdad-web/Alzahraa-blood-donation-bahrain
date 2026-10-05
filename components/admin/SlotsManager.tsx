@@ -47,7 +47,7 @@ function Row({ slot }: { slot: SlotRow }) {
           checked={active}
           onChange={(e) => setActive(e.target.checked)}
           aria-label={`Active for ${formatSlot(slot.startsAt, "en")}`}
-          className="size-4 accent-crimson"
+          className="size-4 accent-brand"
         />
       </TableCell>
       <TableCell>{slot.booked}</TableCell>
@@ -142,7 +142,7 @@ export function SlotsManager({ slots }: { slots: SlotRow[] }) {
         <Button type="submit" disabled={pending}>
           Add slot
         </Button>
-        {state.error && <p role="alert" className="text-sm text-crimson">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
         {state.ok && state.message && <p role="status" className="text-sm text-success">{state.message}</p>}
       </form>
     </div>

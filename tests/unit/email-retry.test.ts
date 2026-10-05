@@ -9,6 +9,8 @@ const db = vi.hoisted(() => ({
 const sendConfirmationEmail = vi.hoisted(() => vi.fn());
 const renderDonorCard = vi.hoisted(() => vi.fn());
 
+const reportAlert = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/alert", () => ({ reportAlert }));
 vi.mock("@/lib/db/email", () => db);
 vi.mock("@/lib/email/send", () => ({ sendConfirmationEmail }));
 vi.mock("@/lib/pdf/render", () => ({ renderDonorCard }));
@@ -168,6 +170,17 @@ describe("sendDonorEmail", () => {
     delete process.env.RESEND_API_KEY;
     expect(await sendDonorEmail(donor.id)).toBe("queued");
     expect(db.claimEmailSend).not.toHaveBeenCalled();
+  });
+  it("reports email_failed with the donor id and no address", async () => {
+    sendConfirmationEmail.mockResolvedValue({ ok: false, error: "smtp EAUTH 535: bad login" });
+    await sendDonorEmail(donor.id);
+    expect(reportAlert).toHaveBeenCalledWith({ event: "email_failed", donorId: donor.id, detail: "smtp EAUTH 535: bad login" });
+    expect(JSON.stringify(reportAlert.mock.calls)).not.toContain("@");
+  });
+  it("reports email_not_configured when no provider is set", async () => {
+    delete process.env.RESEND_API_KEY;
+    await sendDonorEmail(donor.id);
+    expect(reportAlert).toHaveBeenCalledWith({ event: "email_not_configured" });
   });
   it("returns queued without sending when the budget claim is null", async () => {
     db.claimEmailSend.mockResolvedValue(null);

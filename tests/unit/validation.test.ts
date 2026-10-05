@@ -92,9 +92,11 @@ describe("signupSchema", () => {
     expect(r.success && r.data.fullName).toBe("Ali bin Hasan");
   });
   it("rejects a future or impossible dob", () => {
-    expect(codes({ ...good, dob: "2999-01-01" }).dob).toBe("dob_invalid");
+    expect(codes({ ...good, dob: "2999-01-01" }).dob).toBe("dob_future");
     expect(codes({ ...good, dob: "2020-02-30" }).dob).toBe("dob_invalid");
     expect(codes({ ...good, dob: "" }).dob).toBe("dob_required");
+    expect(codes({ ...good, dob: "1899-12-31" }).dob).toBe("dob_too_old");
+    expect(codes({ ...good, dob: "20005-01-01" }).dob).toBe("dob_invalid");
   });
 });
 

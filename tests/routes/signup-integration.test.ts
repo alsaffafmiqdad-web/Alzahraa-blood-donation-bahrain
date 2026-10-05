@@ -264,7 +264,7 @@ describe("signup end to end with mocked edges", () => {
       p_flagged: true, p_flag_reasons: ["recent_donation", "on_medication"],
     });
     expect(Object.keys(call).sort()).toEqual(
-      ["p_blood_type","p_cpr","p_dob","p_email","p_flag_reasons","p_flagged","p_full_name","p_phone","p_q_on_medication","p_q_recent_donation","p_slot_id"],
+      ["p_blood_type","p_cpr","p_dob","p_email","p_flag_reasons","p_flagged","p_full_name","p_phone","p_q_on_medication","p_q_recent_donation","p_slot_id","p_submission_id"],
     );
   });
   it("normalises Arabic-Indic digits in CPR and phone", async () => {

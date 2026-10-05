@@ -11,7 +11,7 @@ A bilingual (Arabic and English) web app for the Alzahraa blood donation drive. 
 
 ## Tech stack
 
-Next.js 16 (App Router, TypeScript), Tailwind CSS 4 and shadcn/ui, Supabase (Postgres, Auth, Storage), Resend, `@react-pdf/renderer`, Zod, Cloudflare Turnstile, Vercel and Vitest.
+Next.js 16 (App Router, TypeScript), Tailwind CSS 4 and shadcn/ui, Supabase (Postgres, Auth, Storage), Gmail SMTP (nodemailer) with Resend as fallback, GSAP, `@react-pdf/renderer`, Zod, Cloudflare Turnstile, Vercel and Vitest.
 
 ## Getting started
 

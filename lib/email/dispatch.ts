@@ -1,7 +1,8 @@
 import "server-only";
+import { reportAlert } from "@/lib/alert";
 import { EMAIL_CONCURRENCY } from "@/lib/config";
 import { claimEmailSend, finishEmailSend, getDonorForEmail } from "@/lib/db/email";
-import { emailDailyBudget, resendConfig } from "@/lib/env";
+import { emailConfig, emailDailyBudget } from "@/lib/env";
 import { sendConfirmationEmail } from "@/lib/email/send";
 import { donorCardData, registrationFormData } from "@/lib/pdf/donor-card-pdf";
 import { renderDonorCard } from "@/lib/pdf/render";
@@ -17,8 +18,9 @@ export async function sendDonorEmail(donorId: string): Promise<EmailOutcome> {
   try {
     const donor = await getDonorForEmail(donorId);
     if (!donor || !donor.email) return "none";
-    if (!resendConfig()) {
-      console.warn(`email skipped donor=${donorId}: Resend is not configured`);
+    if (!emailConfig()) {
+      console.warn(`email skipped donor=${donorId}: email is not configured`);
+      reportAlert({ event: "email_not_configured" });
       return "queued";
     }
     claimId = await claimEmailSend(donorId, emailDailyBudget());
@@ -29,11 +31,15 @@ export async function sendDonorEmail(donorId: string): Promise<EmailOutcome> {
     const result = await sendConfirmationEmail({ ...data, emailTo: donor.email }, pdf);
     await finishEmailSend(claimId, result.ok, result.ok ? null : result.error);
     claimId = null;
-    if (!result.ok) console.error(`email error donor=${donorId}: ${result.error}`);
+    if (!result.ok) {
+      console.error(`email error donor=${donorId}: ${result.error}`);
+      reportAlert({ event: "email_failed", donorId, detail: result.error });
+    }
     return result.ok ? "sent" : "failed";
   } catch (e) {
     const message = e instanceof Error ? e.message : "unknown";
     console.error(`email error donor=${donorId}: ${message}`);
+    reportAlert({ event: "email_failed", donorId, detail: message });
     if (claimId !== null) {
       try {
         await finishEmailSend(claimId, false, message);
