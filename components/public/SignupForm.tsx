@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Loader2 } from "lucide-react";
 import { BLOOD_TYPES, AGE_MAX, AGE_MIN } from "@/lib/config";
 import { cprInput, phoneInput } from "@/lib/cpr";
-import { cleanDobPart, composeDob, dobExample, dobPartsError } from "@/lib/dob";
+import { shouldAdvance, typingCountryCode } from "@/lib/auto-advance";
+import { cleanDobPart, composeDob, dobExample, dobPartsError, isoToDobParts } from "@/lib/dob";
 import { reportClientError } from "@/lib/client-log";
 import { keyboardInset } from "@/lib/keyboard-inset";
 import {
@@ -190,6 +191,9 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
   const hasDraft = useMemo(() => parseDraft(draftRaw, { eventDate, walkIn }) !== null, [draftRaw, eventDate, walkIn]);
   const formRef = useRef<HTMLFormElement>(null);
   const dobRef = useRef<HTMLInputElement>(null);
+  const dobMonthRef = useRef<HTMLInputElement>(null);
+  const dobYearRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
   const slowTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(slowTimer.current), []);
@@ -905,9 +909,9 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                 const value = cprInput(el.value);
                 const atEnd = el.selectionStart === el.value.length;
                 set("cpr", value);
-                if (value.length === 9 && atEnd) dobRef.current?.focus();
+                if (shouldAdvance(value, v.cpr, 9, atEnd)) dobRef.current?.focus();
               }}
-              onBlur={() => markLength("cpr", v.cpr, 9, "cpr_invalid")}
+              onBlur={(e) => markLength("cpr", cprInput(e.currentTarget.value), 9, "cpr_invalid")}
               aria-required="true"
               aria-invalid={!!errors.cpr}
               aria-describedby={desc(errors.cpr && "f-cpr-error")}
@@ -916,7 +920,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
           </div>
           <fieldset
             id="f-dob"
-            aria-describedby={desc("f-dob-hint", age !== null && "f-dob-age", errors.dob && "f-dob-error")}
+            aria-describedby={desc("f-dob-hint", (ageYoung || ageOld) && "f-dob-age", errors.dob && "f-dob-error")}
           >
             <legend className={labelCls}>{dict.join.dob}</legend>
             <p id="f-dob-hint" className="mb-2 text-sm text-ink-soft">
@@ -925,9 +929,9 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
             <div className="flex gap-3">
               {(
                 [
-                  ["day", "dobDay", dict.join.dob_day, "w-20", 2, "bday-day", ex.day],
-                  ["month", "dobMonth", dict.join.dob_month, "w-20", 2, "bday-month", ex.month],
-                  ["year", "dobYear", dict.join.dob_year, "w-28", 4, "bday-year", ex.year],
+                  ["day", "dobDay", dict.join.dob_day, "w-16", 2, "bday-day", ex.day],
+                  ["month", "dobMonth", dict.join.dob_month, "w-16", 2, "bday-month", ex.month],
+                  ["year", "dobYear", dict.join.dob_year, "w-24", 4, "bday-year", ex.year],
                 ] as const
               ).map(([part, key, label, width, max, ac, ph]) => (
                 <div key={part}>
@@ -936,7 +940,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                   </label>
                   <input
                     id={`f-dob-${part}`}
-                    ref={part === "day" ? dobRef : undefined}
+                    ref={part === "day" ? dobRef : part === "month" ? dobMonthRef : dobYearRef}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -947,28 +951,71 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                     placeholder={ph}
                     className={(inputCls + " text-center").replace("w-full", width)}
                     value={v[key]}
-                    onChange={(e) => set(key, cleanDobPart(e.target.value, max))}
+                    onChange={(e) => {
+                      const el = e.target;
+                      const value = cleanDobPart(el.value, max);
+                      const atEnd = el.selectionStart === el.value.length;
+                      set(key, value);
+                      if (shouldAdvance(value, v[key], max, atEnd)) {
+                        if (part === "day") dobMonthRef.current?.focus();
+                        else if (part === "month") dobYearRef.current?.focus();
+                      }
+                    }}
                     aria-required="true"
                     aria-invalid={!!errors.dob}
                   />
                 </div>
               ))}
+              <div className="relative size-14 shrink-0 self-end has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand">
+                <span
+                  aria-hidden="true"
+                  className="flex size-14 items-center justify-center rounded-xl border-2 border-line-strong bg-white text-brand"
+                >
+                  <CalendarDays className="size-6" aria-hidden="true" />
+                </span>
+                <input
+                  type="date"
+                  id="f-dob-picker"
+                  aria-label={dict.join.dob_picker}
+                  dir="ltr"
+                  min="1900-01-01"
+                  max={eventDate}
+                  value={dobShown ? dobComposed : ""}
+                  className="absolute inset-0 size-full cursor-pointer opacity-0"
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker?.();
+                    } catch {
+                      /* unsupported or not user-activated */
+                    }
+                  }}
+                  onChange={(e) => {
+                    const parts = isoToDobParts(e.target.value);
+                    if (!parts) return;
+                    setSubmissionId(null);
+                    setV((prev) => ({ ...prev, dobDay: parts.day, dobMonth: parts.month, dobYear: parts.year }));
+                    setErrors((prev) => {
+                      if (!("dob" in prev)) return prev;
+                      const next = { ...prev };
+                      delete next.dob;
+                      return next;
+                    });
+                  }}
+                />
+              </div>
             </div>
             <p
               id="f-dob-age"
               aria-live="polite"
               className={
-                age !== null
-                  ? "mt-2 rounded-md px-3 py-1.5 text-sm " + (ageYoung || ageOld ? "bg-flag-bg text-flag-ink" : "text-ink-soft")
-                  : undefined
+                ageYoung || ageOld ? "mt-2 rounded-md bg-flag-bg px-3 py-1.5 text-sm text-flag-ink" : undefined
               }
             >
-              {age !== null &&
-                (ageYoung
-                  ? t(dict.join.age_young, { age, min: AGE_MIN })
-                  : ageOld
-                    ? t(dict.join.age_old, { age, max: AGE_MAX })
-                    : t(dict.join.age_ok, { age }))}
+              {ageYoung
+                ? t(dict.join.age_young, { age, min: AGE_MIN })
+                : ageOld
+                  ? t(dict.join.age_old, { age, max: AGE_MAX })
+                  : null}
             </p>
             {fieldError("dob")}
           </fieldset>
@@ -994,8 +1041,14 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
               placeholder="3XXXXXXX"
               dir="ltr"
               value={v.phone}
-              onChange={(e) => set("phone", phoneInput(e.target.value))}
-              onBlur={() => markLength("phone", v.phone, 8, "phone_invalid")}
+              onChange={(e) => {
+                const el = e.target;
+                const value = phoneInput(el.value);
+                const atEnd = el.selectionStart === el.value.length;
+                set("phone", value);
+                if (!typingCountryCode(el.value) && shouldAdvance(value, v.phone, 8, atEnd)) emailRef.current?.focus();
+              }}
+              onBlur={(e) => markLength("phone", phoneInput(e.currentTarget.value), 8, "phone_invalid")}
               aria-required="true"
               aria-invalid={!!errors.phone}
               aria-describedby={desc(errors.phone && "f-phone-error")}
@@ -1008,6 +1061,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
             </label>
             <input
               id="f-email"
+              ref={emailRef}
               type="email"
               className={inputCls}
               autoComplete="email"

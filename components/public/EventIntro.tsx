@@ -1,4 +1,4 @@
-import { CalendarDays, Clock, MapPin } from "lucide-react";
+import { CalendarDays, Clock, IdCard, MapPin } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 
 type Icon = typeof CalendarDays;
@@ -40,6 +40,19 @@ export function EventIntro({
         <Row icon={Clock} label={dict.join.intro_time} value={event.timeText} />
         {event.location && <Row icon={MapPin} label={dict.join.intro_location} value={event.location} />}
       </dl>
+      {!closed && (
+        <section aria-labelledby="intro-docs-title" className="space-y-3">
+          <h2 id="intro-docs-title" className="text-lg font-bold text-ink">
+            {dict.join.intro_docs_title}
+          </h2>
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-white">
+            <li className="flex items-center gap-3 p-4">
+              <IdCard className="size-5 text-brand" aria-hidden="true" />
+              <span className="font-medium">{dict.join.intro_doc_cpr}</span>
+            </li>
+          </ul>
+        </section>
+      )}
       {walkIn && !closed && <p className="rounded-xl bg-brand-tint p-4">{dict.join.walk_in_notice}</p>}
       {closed ? (
         <p role="status" className="rounded-xl border border-line bg-white p-4">

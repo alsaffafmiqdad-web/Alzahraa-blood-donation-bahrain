@@ -15,7 +15,7 @@
 
 ## Signup flow
 
-0. `/[locale]/join` opens on an intro screen (event name, date, start time, location) with a Register button; the form steps follow, with a sticky Back and Next bar.
+0. `/[locale]/join` opens on an intro screen (event name, date, start time, location, and the required documents) with a Register button; the form steps follow, with a sticky Back and Next bar.
 1. `/[locale]/join` loads the event and decides on the server whether it's walk-in mode (`lib/event-mode.ts`): on the event date, from the event start time, in Bahrain time.
 2. The form posts multipart data to `POST /api/signup`. The server decides the mode again from its own clock and never trusts the client.
 3. The route checks the rate limit, validates with Zod, checks the photo's real type from its bytes, verifies Turnstile, and then registers the donor through a database function: `register_donor` for slot signups, or `register_walk_in_donor` for walk-ins, which also issues the next queue number.

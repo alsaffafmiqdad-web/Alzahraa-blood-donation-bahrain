@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import "../globals.css";
 import { thmanyahDisplay, thmanyahSans } from "../fonts";
 import { LOCALES } from "@/lib/config";
-import { dirFor, getDictionary, isLocale } from "@/lib/i18n";
+import { dirFor, isLocale } from "@/lib/i18n";
+import { publicEnv } from "@/lib/public-env";
+import { siteMetadata } from "@/lib/site-metadata";
 
 export const dynamicParams = false;
 
@@ -22,7 +24,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) return {};
-  return { title: getDictionary(locale).join.title };
+  return siteMetadata(locale, publicEnv.siteUrl);
 }
 
 export default async function LocaleLayout({

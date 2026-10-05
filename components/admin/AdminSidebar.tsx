@@ -8,7 +8,7 @@ import {
   CalendarDays,
   Clock,
   Download,
-  Droplet,
+  HandHeart,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -166,7 +166,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
         className="no-print sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-e border-line bg-white transition-[width] duration-200 data-[collapsed]:w-16 motion-reduce:transition-none lg:flex"
       >
         <div className="flex h-14 items-center gap-2 px-3">
-          <Droplet className="size-5 shrink-0 fill-crimson text-crimson" aria-hidden="true" />
+          <HandHeart className="size-5 shrink-0 text-brand" aria-hidden="true" />
           <span className={collapsed ? "sr-only" : "truncate font-bold text-ink"}>Organiser console</span>
           <button
             type="button"
@@ -207,7 +207,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
             >
               <Dialog.Title className="sr-only">Admin navigation</Dialog.Title>
               <div className="flex h-14 items-center gap-2 px-3">
-                <Droplet className="size-5 shrink-0 fill-crimson text-crimson" aria-hidden="true" />
+                <HandHeart className="size-5 shrink-0 text-brand" aria-hidden="true" />
                 <span className="truncate font-bold text-ink">Organiser console</span>
                 <Dialog.Close
                   aria-label="Close menu"
@@ -223,7 +223,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <Droplet className="size-5 shrink-0 fill-crimson text-crimson" aria-hidden="true" />
+        <HandHeart className="size-5 shrink-0 text-brand" aria-hidden="true" />
         <span className="font-bold text-ink">Organiser console</span>
       </div>
     </>
