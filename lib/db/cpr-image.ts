@@ -1,4 +1,5 @@
 import "server-only";
+import { reportAlert } from "@/lib/alert";
 import { CPR_IMAGE_BUCKET, CPR_IMAGE_MIME, cprImagePath, type CprImageExt } from "@/lib/cpr-image";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -30,7 +31,9 @@ export async function attachCprImage(donorId: string, bytes: Uint8Array, ext: Cp
     }
     return true;
   } catch (e) {
-    console.error(`cpr image error donor=${donorId}: ${e instanceof Error ? e.message : "unknown"}`);
+    const message = e instanceof Error ? e.message : "unknown";
+    console.error(`cpr image error donor=${donorId}: ${message}`);
+    reportAlert({ event: "cpr_upload_failed", donorId, detail: message });
     return false;
   }
 }

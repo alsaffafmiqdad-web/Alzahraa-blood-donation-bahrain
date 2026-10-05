@@ -67,7 +67,7 @@ export default async function DashboardPage({
   return (
     <AdminShell displayName={displayName}>
       {donorsRes.error && (
-        <p role="alert" className="mb-4 rounded-md bg-blush px-3 py-2 text-sm text-crimson-dark">
+        <p role="alert" className="mb-4 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-dark">
           Could not load donors: {donorsRes.error.message}
         </p>
       )}
@@ -140,7 +140,7 @@ export default async function DashboardPage({
           </select>
         </label>
         <label className="flex items-center gap-2 pb-1.5 text-sm">
-          <input type="checkbox" name="flagged" value="1" defaultChecked={!!filters.flagged} className="size-4 accent-crimson" />
+          <input type="checkbox" name="flagged" value="1" defaultChecked={!!filters.flagged} className="size-4 accent-brand" />
           Flagged only
         </label>
         <Button type="submit" size="sm">

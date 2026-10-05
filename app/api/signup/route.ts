@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportAlert } from "@/lib/alert";
 import { createCardToken } from "@/lib/card-link";
 import { MAX_SIGNUP_BODY_BYTES } from "@/lib/config";
 import {
@@ -8,7 +9,7 @@ import {
   type CprImageExt,
 } from "@/lib/cpr-image";
 import { attachCprImage } from "@/lib/db/cpr-image";
-import { getEvent, registerDonor } from "@/lib/db/public";
+import { findSubmission, getEvent, registerDonor } from "@/lib/db/public";
 import { sendDonorEmail } from "@/lib/email/dispatch";
 import { isWalkInMode } from "@/lib/event-mode";
 import { shortRef } from "@/lib/format";
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
   try {
     const ip = clientIp(req);
     if (!(await checkSignupRateLimit(ip))) {
+      reportAlert({ event: "signup_rate_limited" });
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
 
@@ -108,8 +110,46 @@ export async function POST(req: Request) {
 
     // Count the attempt only now: typos (Zod) and failed Turnstile checks never burn the quota.
     if (!(await recordSignupAttempt(ip))) {
+      reportAlert({ event: "signup_rate_limited" });
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
+
+    // The success response, shared by the normal path and a replay of an earlier attempt.
+    const success = (
+      id: string,
+      isWalkIn: boolean,
+      slot: number | null,
+      queueNumber: number | null,
+      emailStatus: "sent" | "queued" | "none",
+    ) => {
+      // The card download is a convenience: if the token can't be made, the registration still succeeds.
+      let card: string | undefined;
+      try {
+        card = createCardToken(id);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "unknown";
+        console.error(`card token error donor=${id}: ${message}`);
+        reportAlert({ event: "card_token_failed", donorId: id, detail: message });
+      }
+      const ref = shortRef(id);
+      if (isWalkIn) {
+        return json({ ok: true, ref, walkIn: true, queueNumber, emailStatus, ...(card ? { card } : {}) }, 200);
+      }
+      return json({ ok: true, ref, slotId: slot, emailStatus, ...(card ? { card } : {}) }, 200);
+    };
+
+    // A retry of a registration whose response was lost: answer with the original result, never register twice.
+    const replay = async (): Promise<Response | null> => {
+      if (!input.submissionId) return null;
+      const prior = await findSubmission(input.submissionId);
+      if (!prior || prior.cpr !== input.cpr) return null;
+      if (image && !prior.hasImage) await attachCprImage(prior.id, image.bytes, image.ext);
+      console.info(`signup replay donor=${prior.id}`);
+      const emailStatus = !prior.email ? "none" : prior.emailSent ? "sent" : "queued";
+      return success(prior.id, prior.slotId === null, prior.slotId, prior.queueNumber, emailStatus);
+    };
+    const early = await replay();
+    if (early) return early;
 
     if (!event.public_registration_open) {
       return json({ ok: false, error: "registration_closed" }, 403);
@@ -134,8 +174,13 @@ export async function POST(req: Request) {
       onMedication: input.onMedication,
       flagged,
       flagReasons: reasons,
+      submissionId: input.submissionId,
     });
     if (!result.ok) {
+      if (result.reason === "duplicate_cpr") {
+        const late = await replay();
+        if (late) return late;
+      }
       if (result.reason === "registration_closed") return json({ ok: false, error: result.reason }, 403);
       return json({ ok: false, error: result.reason }, 409);
     }
@@ -149,21 +194,11 @@ export async function POST(req: Request) {
       emailStatus = outcome === "sent" ? "sent" : outcome === "none" ? "none" : "queued";
     }
 
-    // The card download is a convenience: if the token can't be made, the registration still succeeds.
-    let card: string | undefined;
-    try {
-      card = createCardToken(result.id);
-    } catch (e) {
-      console.error(`card token error donor=${result.id}: ${e instanceof Error ? e.message : "unknown"}`);
-    }
-
-    const ref = shortRef(result.id);
-    if (walkIn) {
-      return json({ ok: true, ref, walkIn: true, queueNumber: result.queueNumber, emailStatus, ...(card ? { card } : {}) }, 200);
-    }
-    return json({ ok: true, ref, slotId, emailStatus, ...(card ? { card } : {}) }, 200);
+    return success(result.id, walkIn, slotId, result.queueNumber, emailStatus);
   } catch (e) {
-    console.error(`signup error: ${e instanceof Error ? e.message : "unknown"}`);
+    const message = e instanceof Error ? e.message : "unknown";
+    console.error(`signup error: ${message}`);
+    reportAlert({ event: "signup_error", code: "server", detail: message });
     return json({ ok: false, error: "server" }, 500);
   }
 }

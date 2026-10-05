@@ -1,3 +1,4 @@
+import { reportAlert } from "@/lib/alert";
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { dailyMaintenance, ping } from "@/lib/db/maintenance";
@@ -29,13 +30,17 @@ export async function GET(req: Request) {
     await ping();
   } catch (e) {
     steps.ping = false;
-    console.error(`cron ping failed: ${e instanceof Error ? e.message : "unknown"}`);
+    const message = e instanceof Error ? e.message : "unknown";
+    console.error(`cron ping failed: ${message}`);
+    reportAlert({ event: "cron_step_failed", code: "ping", detail: message });
   }
   try {
     await dailyMaintenance();
   } catch (e) {
     steps.maintenance = false;
-    console.error(`cron maintenance failed: ${e instanceof Error ? e.message : "unknown"}`);
+    const message = e instanceof Error ? e.message : "unknown";
+    console.error(`cron maintenance failed: ${message}`);
+    reportAlert({ event: "cron_step_failed", code: "maintenance", detail: message });
   }
   let retry: Awaited<ReturnType<typeof runEmailRetry>> | null = null;
   try {
@@ -46,7 +51,15 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     steps.retry = false;
-    console.error(`cron retry failed: ${e instanceof Error ? e.message : "unknown"}`);
+    const message = e instanceof Error ? e.message : "unknown";
+    console.error(`cron retry failed: ${message}`);
+    reportAlert({ event: "cron_step_failed", code: "retry", detail: message });
+  }
+  if (retry && (retry.failed > 0 || retry.stoppedForBudget || retry.stoppedForTime)) {
+    reportAlert({
+      event: "cron_email_summary",
+      detail: `attempted=${retry.attempted} sent=${retry.sent} failed=${retry.failed} budget_stop=${retry.stoppedForBudget} time_stop=${retry.stoppedForTime}`,
+    });
   }
   return NextResponse.json({ ok: true, steps, retry });
 }

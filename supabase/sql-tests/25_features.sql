@@ -164,5 +164,28 @@ begin
   perform t.chk('queue_start 0 violates the check', t.attempt(current_user, null, $q$update public.event set queue_start = 0$q$), 'error:23514');
 end $$;
 
+-- idempotent signup: submission_id is stored and a repeat is a duplicate
+do $$
+declare r record; n1 integer; sid constant uuid := 'aaaaaaaa-0000-4000-8000-0000000000aa'; sid2 constant uuid := 'aaaaaaaa-0000-4000-8000-0000000000ab';
+begin
+  perform set_config('request.jwt.claim.sub', '', true);
+  set local role service_role;
+  perform public.register_donor('Sub A','888000001','1990-01-01','33336661',null,'unknown',2::smallint,false,false,false,'{}', sid);
+  reset role;
+  perform t.chk('register_donor stores the submission id',
+    (select count(*)::text from public.donors where cpr = '888000001' and submission_id = sid), '1');
+  perform t.chk('same submission id with a new cpr raises duplicate_cpr', t.attempt('service_role', null,
+    $q$select public.register_donor('Sub B','888000002','1990-01-01','33336662',null,'unknown',2::smallint,false,false,false,'{}','aaaaaaaa-0000-4000-8000-0000000000aa'::uuid)$q$), 'error:P0001');
+  set local role service_role;
+  select * into r from public.register_walk_in_donor('Sub W','888000003','1990-01-01','33336663',null,'unknown',false,false,false,'{}', sid2);
+  reset role;
+  perform t.chk('walk-in stores the submission id',
+    (select count(*)::text from public.donors where id = r.donor_id and submission_id = sid2), '1');
+  select queue_counter into n1 from public.event;
+  perform t.chk('walk-in repeat raises duplicate_cpr', t.attempt('service_role', null,
+    $q$select * from public.register_walk_in_donor('Sub W2','888000004','1990-01-01','33336664',null,'unknown',false,false,false,'{}','aaaaaaaa-0000-4000-8000-0000000000ab'::uuid)$q$), 'error:P0001');
+  perform t.chk('repeat leaves queue_counter unchanged', (select queue_counter::text from public.event), n1::text);
+end $$;
+
 select 'FAIL' r, name, detail from t.results where not ok;
 select count(*) filter (where ok) as passed, count(*) filter (where not ok) as failed from t.results;

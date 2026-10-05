@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { CircleCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { CardDownload } from "@/components/public/CardDownload";
+import { PageShell } from "@/components/public/PageShell";
+import { btnPrimary } from "@/components/public/button-classes";
 import { getEvent, getSlotAvailability } from "@/lib/db/public";
 import { formatDate, formatSlot } from "@/lib/format";
 import { getDictionary, isLocale, t } from "@/lib/i18n";
@@ -67,19 +70,23 @@ export default async function SuccessPage({
           : null;
 
   return (
-    <div className="space-y-5 text-center">
-      <h1 className="text-2xl font-bold text-success">{dict.success.title}</h1>
+    <PageShell locale={locale} dict={dict}>
+    <div className="space-y-5">
+      <h1 className="flex items-center gap-3 font-heading font-swash text-3xl font-bold text-ink">
+        <CircleCheck className="size-8 shrink-0 text-success" aria-hidden="true" />
+        {dict.success.title}
+      </h1>
       <p>{thanks}</p>
       {valid && (
         <div className="rounded-xl border border-line bg-white p-5">
           <p className="text-sm text-ink-soft">{dict.success.ref}</p>
-          <p dir="ltr" className="text-3xl font-bold tracking-widest text-crimson">
+          <p dir="ltr" className="text-3xl font-bold tracking-widest text-brand">
             #{ref}
           </p>
           {walkIn && queue && (
             <>
               <p className="mt-3 text-sm text-ink-soft">{dict.success.queue}</p>
-              <p dir="ltr" className="text-4xl font-bold text-crimson">
+              <p dir="ltr" className="text-4xl font-bold text-brand">
                 #{queue}
               </p>
             </>
@@ -105,12 +112,10 @@ export default async function SuccessPage({
       <p lang="ar" className="text-lg font-bold text-crimson">
         الزهراء عطاءٌ ممتد
       </p>
-      <Link
-        href={`/${locale}/join`}
-        className="inline-block rounded-lg bg-crimson px-5 py-3 font-bold text-white hover:bg-crimson-dark"
-      >
+      <Link href={`/${locale}/join`} className={btnPrimary}>
         {dict.success.another}
       </Link>
     </div>
+    </PageShell>
   );
 }

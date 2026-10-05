@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import type { Dictionary } from "@/lib/i18n";
+import { btnPrimary } from "@/components/public/button-classes";
 
 /** sessionStorage key for the short-lived card token issued by /api/signup (this tab only). */
 export const CARD_TOKEN_KEY = "alz-donor-card";
@@ -59,12 +60,12 @@ export function CardDownload({ dict }: { dict: Dictionary["success"] }) {
         type="button"
         onClick={download}
         disabled={state === "busy"}
-        className="inline-block rounded-lg bg-crimson px-5 py-3 font-bold text-white hover:bg-crimson-dark disabled:opacity-60"
+        className={btnPrimary}
       >
         {state === "busy" ? dict.card_downloading : dict.card_download}
       </button>
       {state === "error" && (
-        <p role="alert" className="mt-2 text-sm text-crimson">
+        <p role="alert" className="mt-2 text-sm font-medium text-danger">
           {dict.card_error}
         </p>
       )}

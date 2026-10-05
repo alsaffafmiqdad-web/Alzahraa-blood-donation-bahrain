@@ -11,9 +11,9 @@ export default async function LoginPage({
   const error = Array.isArray(sp.error) ? sp.error[0] : sp.error;
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="mb-6 text-2xl font-bold text-crimson">Organiser sign in</h1>
+      <h1 className="mb-6 text-2xl font-bold text-ink">Organiser sign in</h1>
       {error === "not_admin" && (
-        <p role="alert" className="mb-4 rounded-md bg-blush px-3 py-2 text-sm text-crimson-dark">
+        <p role="alert" className="mb-4 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-dark">
           This account is not an organiser
         </p>
       )}

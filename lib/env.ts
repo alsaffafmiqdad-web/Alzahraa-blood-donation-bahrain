@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { GMAIL_DEFAULT_BUDGET, RESEND_DEFAULT_BUDGET } from "@/lib/config";
 
 const serverSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
@@ -8,6 +9,11 @@ const serverSchema = z.object({
   TURNSTILE_SECRET_KEY: z.string().min(1),
   RATE_LIMIT_SALT: z.string().min(1),
   CRON_SECRET: z.string().min(1),
+  EMAIL_PROVIDER: z.string().optional(),
+  GMAIL_USER: z.string().optional(),
+  GMAIL_APP_PASSWORD: z.string().optional(),
+  GMAIL_FROM_NAME: z.string().optional(),
+  DISCORD_WEBHOOK_URL: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().optional(),
   EMAIL_DAILY_BUDGET: z.coerce.number().int().min(0).default(95),
@@ -44,17 +50,43 @@ export function resetEnvCache(): void {
   cached = null;
 }
 
-/** Optional email config. Returns null when email is not configured (email is then skipped). */
-export function resendConfig(): { apiKey: string; from: string } | null {
+export type EmailConfig =
+  | { provider: "gmail"; user: string; appPassword: string; fromName: string }
+  | { provider: "resend"; apiKey: string; from: string };
+
+function gmailConfig(): Extract<EmailConfig, { provider: "gmail" }> | null {
+  const user = blankToUndefined(process.env.GMAIL_USER)?.trim();
+  const pass = blankToUndefined(process.env.GMAIL_APP_PASSWORD);
+  if (!user || !/^[^\s@<>"]+@[^\s@<>"]+$/.test(user) || !pass) return null;
+  const appPassword = pass.replace(/\s+/g, "");
+  if (!appPassword) return null;
+  const rawName = blankToUndefined(process.env.GMAIL_FROM_NAME) ?? (orgInfo().name || "Blood Donation Registration");
+  const fromName =
+    rawName.replace(/[\r\n"<>]/g, "").trim().slice(0, 64).trim() || "Blood Donation Registration";
+  return { provider: "gmail", user, appPassword, fromName };
+}
+
+function resendConfig(): Extract<EmailConfig, { provider: "resend" }> | null {
   const apiKey = blankToUndefined(process.env.RESEND_API_KEY);
   const from = blankToUndefined(process.env.RESEND_FROM_EMAIL);
   if (!apiKey || !from) return null;
-  return { apiKey, from };
+  return { provider: "resend", apiKey, from };
+}
+
+/** Null when email is not configured (emails then stay queued). */
+export function emailConfig(): EmailConfig | null {
+  const forced = blankToUndefined(process.env.EMAIL_PROVIDER);
+  if (forced === "gmail") return gmailConfig();
+  if (forced === "resend") return resendConfig();
+  if (forced !== undefined) return null;
+  return gmailConfig() ?? resendConfig();
 }
 
 export function emailDailyBudget(): number {
-  const n = Number(process.env.EMAIL_DAILY_BUDGET);
-  return Number.isInteger(n) && n >= 0 && process.env.EMAIL_DAILY_BUDGET !== "" ? n : 95;
+  const raw = process.env.EMAIL_DAILY_BUDGET;
+  const n = Number(raw);
+  if (raw !== undefined && raw !== "" && Number.isInteger(n) && n >= 0) return n;
+  return emailConfig()?.provider === "gmail" ? GMAIL_DEFAULT_BUDGET : RESEND_DEFAULT_BUDGET;
 }
 
 export function orgInfo(): { name: string; email: string; phone: string } {

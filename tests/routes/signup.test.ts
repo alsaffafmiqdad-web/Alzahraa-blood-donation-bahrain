@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   registerDonor: vi.fn(),
   sendDonorEmail: vi.fn(),
   attachCprImage: vi.fn(),
+  findSubmission: vi.fn(),
+  reportAlert: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -16,7 +18,8 @@ vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "1.2.3.4",
 }));
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: m.verifyTurnstile }));
-vi.mock("@/lib/db/public", () => ({ getEvent: m.getEvent, registerDonor: m.registerDonor }));
+vi.mock("@/lib/db/public", () => ({ getEvent: m.getEvent, registerDonor: m.registerDonor, findSubmission: m.findSubmission }));
+vi.mock("@/lib/alert", () => ({ reportAlert: m.reportAlert }));
 vi.mock("@/lib/db/cpr-image", () => ({ attachCprImage: m.attachCprImage }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: m.sendDonorEmail }));
 
@@ -358,5 +361,81 @@ describe("POST /api/signup", () => {
       expect(body).toEqual({ ok: false, error: "duplicate_cpr" });
       expect(body).not.toHaveProperty("queueNumber");
     });
+  });
+});
+
+describe("POST /api/signup idempotency and alerts", () => {
+  const SID = "aaaaaaaa-0000-4000-8000-0000000000aa";
+  const prior = { id: ID, cpr: "990101123", slotId: 3, queueNumber: null, email: "ali@example.com", emailSent: false, hasImage: true };
+  beforeEach(() => {
+    m.findSubmission.mockResolvedValue(null);
+  });
+
+  it("accepts a uuid submissionId and passes it to registerDonor", async () => {
+    const res = await POST(req({ ...good, submissionId: SID }));
+    expect(res.status).toBe(200);
+    expect(m.registerDonor).toHaveBeenCalledWith(expect.objectContaining({ submissionId: SID }));
+  });
+  it("400 with fields.submissionId on a non-uuid", async () => {
+    const res = await POST(req({ ...good, submissionId: "nope" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.submissionId).toBe("server");
+  });
+  it("never looks up a submission without an id", async () => {
+    await POST(req(good));
+    expect(m.findSubmission).not.toHaveBeenCalled();
+  });
+  it("early replay in slot mode returns the original slot without registering or emailing", async () => {
+    m.findSubmission.mockResolvedValue(prior);
+    const res = await POST(req({ ...good, submissionId: SID }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, slotId: 3, emailStatus: "queued" });
+    expect(m.registerDonor).not.toHaveBeenCalled();
+    expect(m.sendDonorEmail).not.toHaveBeenCalled();
+  });
+  it("emailStatus follows emailSent", async () => {
+    m.findSubmission.mockResolvedValue({ ...prior, emailSent: true });
+    expect((await (await POST(req({ ...good, submissionId: SID }))).json()).emailStatus).toBe("sent");
+  });
+  it("early replay in walk-in mode returns the stored queue number", async () => {
+    m.getEvent.mockResolvedValue({ event_date: "2026-10-16", event_start_time: "00:00", public_registration_open: true });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-16T09:00:00Z"));
+    try {
+      m.findSubmission.mockResolvedValue({ ...prior, slotId: null, queueNumber: 42 });
+      const body = await (await POST(req({ ...good, submissionId: SID }))).json();
+      expect(body).toMatchObject({ ok: true, walkIn: true, queueNumber: 42 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("early replay still answers 200 when registration is closed", async () => {
+    m.getEvent.mockResolvedValue({ event_date: "2026-10-16", public_registration_open: false });
+    m.findSubmission.mockResolvedValue(prior);
+    expect((await POST(req({ ...good, submissionId: SID }))).status).toBe(200);
+  });
+  it("late replay after duplicate_cpr is a 200", async () => {
+    m.registerDonor.mockResolvedValue({ ok: false, reason: "duplicate_cpr" });
+    m.findSubmission.mockResolvedValueOnce(null).mockResolvedValueOnce(prior);
+    expect((await POST(req({ ...good, submissionId: SID }))).status).toBe(200);
+  });
+  it("a different CPR under the same submission id stays 409", async () => {
+    m.registerDonor.mockResolvedValue({ ok: false, reason: "duplicate_cpr" });
+    m.findSubmission.mockResolvedValue({ ...prior, cpr: "111111111" });
+    expect((await POST(req({ ...good, submissionId: SID }))).status).toBe(409);
+  });
+  it("a replay with an image attaches it when the donor has none", async () => {
+    m.findSubmission.mockResolvedValue({ ...prior, hasImage: false });
+    await POST(req({ ...good, submissionId: SID }));
+    expect(m.attachCprImage).toHaveBeenCalledTimes(1);
+  });
+  it("reports signup_error on a 500 and signup_rate_limited on a 429", async () => {
+    m.registerDonor.mockRejectedValue(new Error("boom"));
+    expect((await POST(req(good))).status).toBe(500);
+    expect(m.reportAlert).toHaveBeenCalledWith(expect.objectContaining({ event: "signup_error" }));
+    m.checkSignupRateLimit.mockResolvedValue(false);
+    expect((await POST(req(good))).status).toBe(429);
+    expect(m.reportAlert).toHaveBeenCalledWith({ event: "signup_rate_limited" });
   });
 });

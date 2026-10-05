@@ -57,7 +57,7 @@ describe("client components never reach server-only code", () => {
   });
   const SERVER_ONLY = (f: string) =>
     /^lib\/(db|email|pdf)\//.test(f) ||
-    ["lib/auth.ts", "lib/supabase/admin.ts", "lib/supabase/server.ts", "lib/rate-limit.ts", "lib/turnstile.ts"].includes(f);
+    ["lib/auth.ts", "lib/alert.ts", "lib/supabase/admin.ts", "lib/supabase/server.ts", "lib/rate-limit.ts", "lib/turnstile.ts"].includes(f);
   it.each(clientFiles)("%s: no server-only module in its import closure", (f) => {
     const bad = [...closure(f)].filter((x) => SERVER_ONLY(x) || read(x).includes('import "server-only"'));
     // Server actions (app/admin/actions.ts) are the only allowed bridge: they are 'use server' endpoints.
@@ -65,7 +65,7 @@ describe("client components never reach server-only code", () => {
   });
   it.each(clientFiles)("%s: reads no non-public env var and never names the service role key", (f) => {
     const t = read(f);
-    expect(t).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|TURNSTILE_SECRET|CRON_SECRET|RATE_LIMIT_SALT|RESEND_API_KEY/);
+    expect(t).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|TURNSTILE_SECRET|CRON_SECRET|RATE_LIMIT_SALT|RESEND_API_KEY|GMAIL_APP_PASSWORD|DISCORD_WEBHOOK_URL/);
     const envs = [...t.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1]!);
     expect(envs.filter((e) => !e.startsWith("NEXT_PUBLIC_") && e !== "NODE_ENV")).toEqual([]);
   });
@@ -98,7 +98,7 @@ describe("env naming", () => {
       for (const e of fs.readdirSync(d, { withFileTypes: true })) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) scan(p);
-        else if (/\.(js|css|map)$/.test(e.name) && /SUPABASE_SERVICE_ROLE_KEY|TURNSTILE_SECRET_KEY|CRON_SECRET|RATE_LIMIT_SALT|RESEND_API_KEY|service_role/.test(fs.readFileSync(p, "utf8")))
+        else if (/\.(js|css|map)$/.test(e.name) && /SUPABASE_SERVICE_ROLE_KEY|TURNSTILE_SECRET_KEY|CRON_SECRET|RATE_LIMIT_SALT|RESEND_API_KEY|GMAIL_APP_PASSWORD|DISCORD_WEBHOOK_URL|service_role/.test(fs.readFileSync(p, "utf8")))
           hits.push(path.relative(root, p));
       }
     };

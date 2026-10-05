@@ -33,7 +33,7 @@ export function EventForm({ event }: { event: EventValues }) {
         defaultValue={String(event[name])}
         className={inputCls}
       />
-      {fe[name] && <p className="mt-1 text-sm text-crimson">{fe[name]}</p>}
+      {fe[name] && <p className="mt-1 text-sm text-danger">{fe[name]}</p>}
     </div>
   );
   return (
@@ -58,18 +58,18 @@ export function EventForm({ event }: { event: EventValues }) {
         <p id="event_start_time-hint" className="mt-1 text-sm text-ink-soft">
           On the event date, from this time, the public link registers donors as walk-ins, gives each one the next queue number, and does not ask them to choose a time.
         </p>
-        {fe.event_start_time && <p className="mt-1 text-sm text-crimson">{fe.event_start_time}</p>}
+        {fe.event_start_time && <p className="mt-1 text-sm text-danger">{fe.event_start_time}</p>}
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
           name="public_registration_open"
           defaultChecked={event.public_registration_open}
-          className="size-4 accent-crimson"
+          className="size-4 accent-brand"
         />
         Public registration is open
       </label>
-      {state.error && <p role="alert" className="text-sm text-crimson">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       {state.ok && state.message && <p role="status" className="text-sm text-success">{state.message}</p>}
       <Button type="submit" disabled={pending}>
         {pending ? "Saving..." : "Save event"}

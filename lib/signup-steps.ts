@@ -1,6 +1,7 @@
 /* Isomorphic and framework-free: the step model of the public signup form. */
 
-export type StepId = "slot" | "name" | "identity" | "contact" | "bloodType" | "photo" | "screening" | "review";
+export const STEP_IDS = ["slot", "name", "identity", "contact", "bloodType", "photo", "screening", "review"] as const;
+export type StepId = (typeof STEP_IDS)[number];
 export type FieldKey =
   | "slotId"
   | "fullName"
@@ -25,7 +26,7 @@ export const STEP_FIELDS: Record<StepId, readonly FieldKey[]> = {
   review: ["consent"],
 };
 
-const ORDER: StepId[] = ["slot", "name", "identity", "contact", "bloodType", "photo", "screening", "review"];
+const ORDER: StepId[] = [...STEP_IDS];
 
 /** Slot mode: 8 steps. Walk-in mode: 7 (no "slot"). */
 export function signupSteps(walkIn: boolean): StepId[] {
@@ -50,4 +51,10 @@ export function errorsForStep(errors: Record<string, string>, step: StepId): Rec
 /** Owner decisions B and W4: the photo is required only in slot mode. */
 export function photoRequired(walkIn: boolean): boolean {
   return !walkIn;
+}
+
+/** Horizontal start offset in px for an entering step: forward enters from the inline end, back from the inline start. */
+export function stepShift(direction: "forward" | "back", dir: "rtl" | "ltr"): 24 | -24 {
+  const forward = direction === "forward";
+  return (dir === "ltr") === forward ? 24 : -24;
 }

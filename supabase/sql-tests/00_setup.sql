@@ -16,3 +16,4 @@ alter default privileges in schema public grant all on functions to anon, authen
 \i supabase/migrations/20261003000000_init.sql
 \i supabase/migrations/20261004000000_cpr_image.sql
 \i supabase/migrations/20261005000000_walk_in_signup.sql
+\i supabase/migrations/20261006000000_signup_submission_id.sql

@@ -27,7 +27,7 @@ export default async function AccountPage() {
       <section>
         <h2 className="mb-3 text-lg font-bold">Admins</h2>
         {admins === null ? (
-          <p className="mb-4 text-sm text-crimson">Could not load the admin list.</p>
+          <p className="mb-4 text-sm text-danger">Could not load the admin list.</p>
         ) : (
           <ul className="mb-6 divide-y divide-line rounded-lg border border-line bg-white text-sm">
             {admins.map((a) => (

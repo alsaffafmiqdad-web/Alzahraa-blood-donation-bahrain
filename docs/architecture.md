@@ -7,7 +7,7 @@
 | `app/[locale]/` | Public pages in Arabic (`ar`, default, right to left) and English (`en`): signup, success and privacy |
 | `app/admin/` | Admin pages and server actions (`actions.ts`) |
 | `app/api/` | `signup` (public registration), `card` (PDF download) and `cron/daily` |
-| `components/public/`, `components/admin/` | UI; `components/ui/` is shadcn |
+| `components/public/`, `components/admin/` | UI; `components/ui/` is shadcn. The admin uses a collapsible left sidebar (an off-canvas drawer on mobile) instead of a top nav |
 | `lib/` | Shared logic: validation (Zod), i18n dictionaries, database access (`lib/db/`), email, PDF (`lib/pdf/`), formatting |
 | `supabase/migrations/` | The database schema, policies and functions |
 | `supabase/sql-tests/`, `supabase/tests/` | SQL and pgTAP tests |
@@ -15,11 +15,14 @@
 
 ## Signup flow
 
+0. `/[locale]/join` opens on an intro screen (event name, date, start time, location) with a Register button; the form steps follow, with a sticky Back and Next bar.
 1. `/[locale]/join` loads the event and decides on the server whether it's walk-in mode (`lib/event-mode.ts`): on the event date, from the event start time, in Bahrain time.
 2. The form posts multipart data to `POST /api/signup`. The server decides the mode again from its own clock and never trusts the client.
 3. The route checks the rate limit, validates with Zod, checks the photo's real type from its bytes, verifies Turnstile, and then registers the donor through a database function: `register_donor` for slot signups, or `register_walk_in_donor` for walk-ins, which also issues the next queue number.
 4. The CPR photo is uploaded afterwards on a best-effort basis, with a time limit. If it fails, the registration still stands.
-5. The confirmation email and the PDF are sent if the email budget allows; otherwise the daily cron retries.
+5. The browser retries automatically, with backoff, on network errors and 5xx only. Every attempt of one registration carries the same `submissionId` (`donors.submission_id`, unique); if the response was lost, the server replays the original result instead of registering twice. A replay never re-sends the email.
+6. Answers and the CPR photo are kept as a draft in `sessionStorage` (this tab only, 2 hours) and restored with Continue; they are cleared on success.
+7. The confirmation email and the PDF are sent if the email budget allows; otherwise the daily cron retries.
 
 Queue numbers for walk-ins and desk check-ins come from one function, `next_queue_number()`, under a row lock on the event, so they never clash or repeat.
 
@@ -34,6 +37,9 @@ Queue numbers for walk-ins and desk check-ins come from one function, `next_queu
 - Admins see the full CPR in the dashboard, the donor page, the print forms and the CSV.
 - The donor's PDF is the same A4 registration form the admins print, including the full CPR, flags and notes (owner decision). After signing up, the donor can download it for 2 hours with a signed token that is kept in `sessionStorage` and sent in a POST body, never in a URL.
 - The confirmation email body has no CPR, phone number or screening answers. The PDF is attached.
+- Discord alerts (`lib/alert.ts`) carry no personal data: only event names, codes and donor IDs. The browser reports failure codes to `/api/client-log` for the same channel.
+- Gmail's Sent folder holds every donor PDF; delete it at the retention date.
+- The signup draft holds personal data and the CPR photo in `sessionStorage` until submit.
 - Security headers are set in `next.config.ts`.
 
 ## Data and limits

@@ -1,15 +1,4 @@
-import Link from "next/link";
-import { Droplet } from "lucide-react";
-import { signOut } from "@/app/admin/actions";
-import { Button } from "@/components/ui/button";
-
-const NAV = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/donors/new", label: "Add donor" },
-  { href: "/admin/slots", label: "Slots" },
-  { href: "/admin/event", label: "Event" },
-  { href: "/admin/account", label: "Settings" },
-];
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
 export function AdminShell({
   displayName,
@@ -22,28 +11,24 @@ export function AdminShell({
 }) {
   return (
     <>
-      <header className="no-print border-b border-line bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/admin" className="flex items-center gap-2 font-bold text-crimson">
-            <Droplet className="size-5 fill-crimson" aria-hidden="true" />
-            Organiser console
-          </Link>
-          <nav className="flex flex-wrap gap-4 text-sm">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="text-ink-soft hover:text-crimson">
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-          <form action={signOut} className="ms-auto flex items-center gap-3 text-sm">
-            <span className="text-ink-soft">{displayName}</span>
-            <Button type="submit" variant="outline" size="sm">
-              Sign out
-            </Button>
-          </form>
+      <a
+        href="#main"
+        className="no-print sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:font-medium focus:shadow focus:outline-2 focus:outline-brand"
+      >
+        Skip to main content
+      </a>
+      <div className="min-h-dvh lg:flex print:block">
+        <AdminSidebar displayName={displayName} />
+        <div className="min-w-0 flex-1">
+          <main
+            id="main"
+            tabIndex={-1}
+            className={"mx-auto px-4 py-6 focus:outline-none print:p-0 " + (wide ? "max-w-7xl" : "max-w-3xl")}
+          >
+            {children}
+          </main>
         </div>
-      </header>
-      <main className={"mx-auto px-4 py-6 " + (wide ? "max-w-7xl" : "max-w-3xl")}>{children}</main>
+      </div>
     </>
   );
 }

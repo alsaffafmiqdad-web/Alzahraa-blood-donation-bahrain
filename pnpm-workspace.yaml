@@ -3,3 +3,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - lucide-react@1.51.0
   - pdfjs-dist@6.4.299
+  - nodemailer@10.0.14

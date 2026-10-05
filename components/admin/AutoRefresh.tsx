@@ -53,7 +53,7 @@ export function AutoRefresh() {
         Refresh
       </Button>
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={on} onChange={(e) => toggle(e.target.checked)} className="size-4 accent-crimson" />
+        <input type="checkbox" checked={on} onChange={(e) => toggle(e.target.checked)} className="size-4 accent-brand" />
         Auto-refresh (60s)
       </label>
       <span className="text-ink-soft" suppressHydrationWarning>
