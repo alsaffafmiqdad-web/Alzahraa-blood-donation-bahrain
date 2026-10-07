@@ -100,7 +100,8 @@ describe("scripts/loadtest/run.mjs guards", () => {
   });
   it("local with --env-file or --email-base exits 2", () => {
     const env = { NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" };
-    expect(run(["--env-file", ".env.local"], env).status).toBe(2);
+    // A file the test creates: .env.local doesn't exist in CI, and Node exits 9 on a missing --env-file.
+    expect(run(["--env-file", envFileInRepo(baseVars("http://127.0.0.1:54321"))], env).status).toBe(2);
     expect(run(["--email-base", "owner@example.com"], env).status).toBe(2);
   });
   it("cleanup-only against production without an env file exits 2", () => {
