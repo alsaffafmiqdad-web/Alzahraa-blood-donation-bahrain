@@ -39,6 +39,16 @@ describe("sendConfirmationEmail via Gmail", () => {
     expect(error).not.toContain("user@x.com");
     expect(nm.close).toHaveBeenCalledTimes(1);
   });
+  it("removes recipient addresses from an SMTP message", async () => {
+    nm.sendMail.mockRejectedValue({
+      code: "EENVELOPE",
+      message: "Can't send mail - all recipients were rejected: 550 5.1.1 <donor@example.com> nope",
+    });
+    const r = await sendConfirmationEmail(data, Buffer.from("%PDF"));
+    const error = !r.ok ? r.error : "";
+    expect(error).not.toContain("donor@example.com");
+    expect(error).toContain("[email]");
+  });
   it("is not configured without any provider", async () => {
     delete process.env.GMAIL_USER;
     expect(await sendConfirmationEmail(data, Buffer.from("x"))).toEqual({ ok: false, error: "email is not configured" });

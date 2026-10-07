@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "admin:local": "node --env-file-if-exists=.env.local scripts/create-local-admin.mjs"
+    "admin:local": "node --env-file-if-exists=.env.local scripts/create-local-admin.mjs",
+    "loadtest": "node --env-file-if-exists=.env.local scripts/loadtest/run.mjs",
+    "loadtest:cleanup": "node --env-file-if-exists=.env.local scripts/loadtest/run.mjs --cleanup-only"
   },
   "dependencies": {
     "@gsap/react": "2.1.2",

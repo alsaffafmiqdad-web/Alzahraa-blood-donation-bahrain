@@ -10,7 +10,8 @@ import { getDictionary, isLocale, t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-const EMAIL_STATES = ["sent", "queued", "none"] as const;
+// "queued" is kept so success links from before "sending" existed still render.
+const EMAIL_STATES = ["sent", "sending", "queued", "none"] as const;
 type EmailState = (typeof EMAIL_STATES)[number];
 
 export default async function SuccessPage({
@@ -61,13 +62,15 @@ export default async function SuccessPage({
   const emailMessage =
     emailState === "sent"
       ? dict.success.email_sent
-      : emailState === "queued"
-        ? dict.success.email_queued
-        : emailState === "none"
-          ? walkIn
-            ? dict.success.email_none_walk_in
-            : dict.success.email_none
-          : null;
+      : emailState === "sending"
+        ? dict.success.email_sending
+        : emailState === "queued"
+          ? dict.success.email_queued
+          : emailState === "none"
+            ? walkIn
+              ? dict.success.email_none_walk_in
+              : dict.success.email_none
+            : null;
 
   return (
     <PageShell locale={locale} dict={dict}>

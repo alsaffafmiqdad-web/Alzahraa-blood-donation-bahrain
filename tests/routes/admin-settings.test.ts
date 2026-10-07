@@ -133,11 +133,11 @@ describe("deleteDonor and the CPR photo", () => {
   it("removes the stored photo after deleting the row", async () => {
     h.donorPath = `${ID}/cpr.jpg`;
     expect(await deleteDonor(ID)).toEqual({ ok: true });
-    expect(h.remove).toHaveBeenCalledWith([`${ID}/cpr.jpg`]);
+    expect(h.remove).toHaveBeenCalledWith([`${ID}/cpr.jpg`, `${ID}/cpr.png`, `${ID}/cpr.webp`]);
   });
-  it("does not touch storage when there is no photo", async () => {
+  it("still removes every possible photo path when there is no stored path", async () => {
     expect(await deleteDonor(ID)).toEqual({ ok: true });
-    expect(h.remove).not.toHaveBeenCalled();
+    expect(h.remove).toHaveBeenCalledWith([`${ID}/cpr.jpg`, `${ID}/cpr.png`, `${ID}/cpr.webp`]);
   });
   it("keeps the photo when the row delete fails", async () => {
     h.donorPath = `${ID}/cpr.jpg`;

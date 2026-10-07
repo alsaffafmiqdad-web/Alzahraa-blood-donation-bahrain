@@ -13,7 +13,7 @@ describe("DOB focus wiring", () => {
     expect(form).toContain('ref={part === "day" ? dobRef : part === "month" ? dobMonthRef : dobYearRef}');
   });
   it("day advances to month, month advances to year, year does not advance", () => {
-    expect(form).toMatch(/if \(part === "day"\) dobMonthRef\.current\?\.focus\(\);\s*else if \(part === "month"\) dobYearRef\.current\?\.focus\(\);/);
+    expect(form).toMatch(/if \(part === "day"\) \{\s*if \(v\.dobMonth === ""\) dobMonthRef\.current\?\.focus\(\);\s*else if \(v\.dobYear === ""\) dobYearRef\.current\?\.focus\(\);\s*\} else if \(part === "month" && v\.dobYear === ""\) dobYearRef\.current\?\.focus\(\);/);
     expect(form).not.toMatch(/dobYearRef\.current\?\.focus\(\);\s*else if \(part === "year"\)/);
   });
   it("phone advances to email on the 8th digit; CPR to the day input", () => {

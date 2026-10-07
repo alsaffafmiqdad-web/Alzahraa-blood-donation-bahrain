@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { reportAlert } from "@/lib/alert";
 import { createCardToken } from "@/lib/card-link";
 import { MAX_SIGNUP_BODY_BYTES } from "@/lib/config";
@@ -20,9 +20,12 @@ import { signupSchema, signupWalkInSchema, type SignupInput } from "@/lib/valida
 import { en } from "@/lib/i18n/dictionaries/en";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60; // Budget covers the photo upload (CPR_IMAGE_DEADLINE_MS) and the email sent in after(); stays under SUBMIT_TIMEOUT_MS.
 
 const ERROR_CODES = new Set(Object.keys(en.errors));
+
+/** "sending": the email goes out in after(), once the response has been sent. */
+type EmailStatus = "sent" | "sending" | "none";
 
 function json(body: Record<string, unknown>, status: number, headers?: Record<string, string>) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
@@ -120,7 +123,7 @@ export async function POST(req: Request) {
       isWalkIn: boolean,
       slot: number | null,
       queueNumber: number | null,
-      emailStatus: "sent" | "queued" | "none",
+      emailStatus: EmailStatus,
     ) => {
       // The card download is a convenience: if the token can't be made, the registration still succeeds.
       let card: string | undefined;
@@ -145,7 +148,8 @@ export async function POST(req: Request) {
       if (!prior || prior.cpr !== input.cpr) return null;
       if (image && !prior.hasImage) await attachCprImage(prior.id, image.bytes, image.ext);
       console.info(`signup replay donor=${prior.id}`);
-      const emailStatus = !prior.email ? "none" : prior.emailSent ? "sent" : "queued";
+      // Not sent yet usually means the first request's after() send is still running.
+      const emailStatus = !prior.email ? "none" : prior.emailSent ? "sent" : "sending";
       return success(prior.id, prior.slotId === null, prior.slotId, prior.queueNumber, emailStatus);
     };
     const early = await replay();
@@ -188,10 +192,16 @@ export async function POST(req: Request) {
     // The photo is a convenience for staff: if the upload fails the registration still stands.
     if (image) await attachCprImage(result.id, image.bytes, image.ext);
 
-    let emailStatus: "sent" | "queued" | "none" = "none";
+    // The email (PDF render plus Gmail SMTP, several seconds) is sent after the response, so the
+    // donor isn't kept waiting. sendDonorEmail never throws; a failed or skipped send is left for
+    // the daily cron and the admin resend, as before.
+    let emailStatus: EmailStatus = "none";
     if (input.email) {
-      const outcome = await sendDonorEmail(result.id);
-      emailStatus = outcome === "sent" ? "sent" : outcome === "none" ? "none" : "queued";
+      const donorId = result.id;
+      after(async () => {
+        await sendDonorEmail(donorId);
+      });
+      emailStatus = "sending";
     }
 
     return success(result.id, walkIn, slotId, result.queueNumber, emailStatus);

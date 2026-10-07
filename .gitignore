@@ -2,12 +2,15 @@ node_modules/
 .next/
 out/
 .vercel/
+# .env.loadtest-production is covered by .env*
 .env*
 !.env.example
 .pipeline/
+.loadtest/
 .DS_Store
 *.csv
 *.tsbuildinfo
 next-env.d.ts
 supabase/.temp/
 .vercel
+.claude/settings.local.json

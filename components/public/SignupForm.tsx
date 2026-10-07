@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Loader2 } from "lucide-react";
 import { BLOOD_TYPES, AGE_MAX, AGE_MIN } from "@/lib/config";
 import { cprInput, phoneInput } from "@/lib/cpr";
 import { shouldAdvance, typingCountryCode } from "@/lib/auto-advance";
+import { applyCprPrefill, autoFromRestored, type DobAuto } from "@/lib/dob-prefill";
 import { cleanDobPart, composeDob, dobExample, dobPartsError, isoToDobParts } from "@/lib/dob";
 import { reportClientError } from "@/lib/client-log";
 import { keyboardInset } from "@/lib/keyboard-inset";
@@ -28,7 +29,7 @@ import {
   retryDelay,
 } from "@/lib/submit-retry";
 import { CARD_TOKEN_KEY } from "@/components/public/CardDownload";
-import { formatDate, formatSlot } from "@/lib/format";
+import { formatDate, formatSlot, todayInBahrain } from "@/lib/format";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { dirFor, t } from "@/lib/i18n";
 import { ageOn } from "@/lib/screening";
@@ -161,6 +162,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [dobAuto, setDobAuto] = useState<DobAuto>({ month: false, year: false });
   const [cprImage, setCprImage] = useState<Blob | null>(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -416,6 +418,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
           bloodType: draft.values.bloodType || "unknown",
         }));
         setSubmissionId(draft.submissionId);
+        setDobAuto(autoFromRestored({ dobMonth: draft.values.dobMonth, dobYear: draft.values.dobYear }, draft.values.cpr, todayInBahrain()));
         first = steps.includes(draft.step) ? draft.step : first;
         setRestoredNotice(dict.join.draft_restored);
         const photo = parseDraftPhoto(safeGet(DRAFT_PHOTO_KEY), { eventDate, now });
@@ -440,6 +443,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
     setRestoredNotice("");
     setSubmissionId(null);
     setCprImage(null);
+    setDobAuto({ month: false, year: false });
     setV((prev) => ({ ...prev, slotId: "", fullName: "", cpr: "", dobDay: "", dobMonth: "", dobYear: "", phone: "", email: "", bloodType: "unknown", recentDonation: "", onMedication: "" }));
     setDirection("forward");
     const first = steps[0] ?? "name";
@@ -909,6 +913,11 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                 const value = cprInput(el.value);
                 const atEnd = el.selectionStart === el.value.length;
                 set("cpr", value);
+                const r = applyCprPrefill({ dobMonth: v.dobMonth, dobYear: v.dobYear }, dobAuto, value, todayInBahrain());
+                if (r.dobMonth !== v.dobMonth || r.dobYear !== v.dobYear) {
+                  setV((prev) => ({ ...prev, dobMonth: r.dobMonth, dobYear: r.dobYear }));
+                }
+                setDobAuto(r.auto);
                 if (shouldAdvance(value, v.cpr, 9, atEnd)) dobRef.current?.focus();
               }}
               onBlur={(e) => markLength("cpr", cprInput(e.currentTarget.value), 9, "cpr_invalid")}
@@ -920,11 +929,14 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
           </div>
           <fieldset
             id="f-dob"
-            aria-describedby={desc("f-dob-hint", (ageYoung || ageOld) && "f-dob-age", errors.dob && "f-dob-error")}
+            aria-describedby={desc("f-dob-hint", (dobAuto.month || dobAuto.year) && "f-dob-prefill", (ageYoung || ageOld) && "f-dob-age", errors.dob && "f-dob-error")}
           >
             <legend className={labelCls}>{dict.join.dob}</legend>
             <p id="f-dob-hint" className="mb-2 text-sm text-ink-soft">
               {t(dict.join.dob_hint, { example: `${ex.day} ${ex.month} ${ex.year}` })}
+            </p>
+            <p id="f-dob-prefill" aria-live="polite" className="text-sm text-ink-soft">
+              {dobAuto.month || dobAuto.year ? dict.join.dob_prefilled : ""}
             </p>
             <div className="flex gap-3">
               {(
@@ -956,9 +968,12 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                       const value = cleanDobPart(el.value, max);
                       const atEnd = el.selectionStart === el.value.length;
                       set(key, value);
+                      if (part !== "day") setDobAuto((a) => ({ ...a, [part]: false }));
                       if (shouldAdvance(value, v[key], max, atEnd)) {
-                        if (part === "day") dobMonthRef.current?.focus();
-                        else if (part === "month") dobYearRef.current?.focus();
+                        if (part === "day") {
+                          if (v.dobMonth === "") dobMonthRef.current?.focus();
+                          else if (v.dobYear === "") dobYearRef.current?.focus();
+                        } else if (part === "month" && v.dobYear === "") dobYearRef.current?.focus();
                       }
                     }}
                     aria-required="true"
@@ -993,6 +1008,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
                     const parts = isoToDobParts(e.target.value);
                     if (!parts) return;
                     setSubmissionId(null);
+                    setDobAuto({ month: false, year: false });
                     setV((prev) => ({ ...prev, dobDay: parts.day, dobMonth: parts.month, dobYear: parts.year }));
                     setErrors((prev) => {
                       if (!("dob" in prev)) return prev;

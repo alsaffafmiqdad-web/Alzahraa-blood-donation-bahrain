@@ -28,10 +28,24 @@ function todayUtcIso(): string {
   return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/**
+ * Letters in any script (Arabic, English, ...) and their marks (Arabic diacritics), single spaces,
+ * apostrophes and hyphens (O'Neil, Al-Hasan). No digits or other symbols, and at least one letter.
+ */
+export function isValidName(s: string): boolean {
+  return /^[\p{L}\p{M} '’-]+$/u.test(s) && /\p{L}/u.test(s);
+}
+
 const nameField = z
   .string({ error: "name_required" })
   .transform(cleanName)
-  .pipe(z.string().min(1, { error: "name_required" }).max(150, { error: "name_required" }));
+  .pipe(
+    z
+      .string()
+      .min(1, { error: "name_required" })
+      .max(150, { error: "name_required" })
+      .refine((s) => s === "" || isValidName(s), { error: "name_invalid" }),
+  );
 
 const cprField = z
   .string({ error: "cpr_invalid" })

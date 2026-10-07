@@ -34,6 +34,7 @@ vi.mock("@/lib/pdf/render", () => ({ renderDonorCard: async () => Buffer.from("%
 
 import { POST } from "@/app/api/signup/route";
 import { resetEnvCache } from "@/lib/env";
+import { flushAfter } from "../helpers/after";
 import { multipartRequest } from "../helpers/multipart";
 
 const ID = "abcdef12-3456-4890-8bcd-ef1234567890";
@@ -112,7 +113,9 @@ describe("signup end to end with mocked edges", () => {
     const res = await POST(req(good));
     expect(res.status).toBe(200);
     const resBody = (await res.json()) as Record<string, unknown>;
-    expect(resBody).toMatchObject({ ok: true, ref: "ABCDEF12", slotId: 3, emailStatus: "sent" });
+    expect(resBody).toMatchObject({ ok: true, ref: "ABCDEF12", slotId: 3, emailStatus: "sending" });
+    await flushAfter();
+    expect(h.resendSend).toHaveBeenCalledTimes(1);
     // A signed card token for the success-page download; it carries no CPR.
     expect(resBody.card).toMatch(/^abcdef12-3456-4890-8bcd-ef1234567890\.\d+\.[A-Za-z0-9_-]{43}$/);
     expect(JSON.stringify(resBody)).not.toContain(good.cpr);
@@ -213,13 +216,14 @@ describe("signup end to end with mocked edges", () => {
     expect(res.status).toBe(500);
     expect(await res.text()).not.toContain("990101123");
   });
-  it("email failure from Resend still returns 200, donor saved, emailStatus=queued", async () => {
+  it("email failure from Resend still returns 200, donor saved, failure recorded after the response", async () => {
     h.resendSend.mockResolvedValue({ data: null, error: { message: "rate limited by resend" } });
     const res = await POST(req(good));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.emailStatus).toBe("queued");
+    expect(body.emailStatus).toBe("sending");
+    await flushAfter();
     const fin = h.rpc.mock.calls.find((c) => c[0] === "finish_email_send")!;
     expect(fin[1]).toMatchObject({ p_claim_id: 7, p_success: false });
   });
@@ -227,20 +231,23 @@ describe("signup end to end with mocked edges", () => {
     h.resendSend.mockRejectedValue(new Error("socket hang up"));
     const res = await POST(req(good));
     expect(res.status).toBe(200);
-    expect((await res.json()).emailStatus).toBe("queued");
+    expect((await res.json()).emailStatus).toBe("sending");
+    await flushAfter();
     expect(h.rpc.mock.calls.find((c) => c[0] === "finish_email_send")![1]).toMatchObject({ p_success: false });
   });
   it("budget exhausted: 200, queued, Resend never called", async () => {
     rpcs.claim_email_send = () => ({ data: null, error: null });
     const res = await POST(req(good));
-    expect((await res.json()).emailStatus).toBe("queued");
+    expect((await res.json()).emailStatus).toBe("sending");
+    await flushAfter();
     expect(h.resendSend).not.toHaveBeenCalled();
     expect(h.rpc.mock.calls.find((c) => c[0] === "claim_email_send")![1]).toMatchObject({ p_budget: 95 });
   });
   it("Resend not configured: 200 and queued, no claim", async () => {
     delete process.env.RESEND_API_KEY;
     const res = await POST(req(good));
-    expect((await res.json()).emailStatus).toBe("queued");
+    expect((await res.json()).emailStatus).toBe("sending");
+    await flushAfter();
     expect(h.rpc.mock.calls.map((c) => c[0])).not.toContain("claim_email_send");
   });
   it("email never contains the CPR and logs hold no PII", async () => {
@@ -248,6 +255,7 @@ describe("signup end to end with mocked edges", () => {
     vi.spyOn(console, "error").mockImplementation((...a) => void logs.push(a.join(" ")));
     h.resendSend.mockResolvedValue({ data: null, error: { message: "bad" } });
     await POST(req(good));
+    await flushAfter();
     const sent = JSON.stringify(h.resendSend.mock.calls);
     expect(sent).not.toContain("990101123");
     for (const l of logs) {

@@ -22,7 +22,7 @@
 4. The CPR photo is uploaded afterwards on a best-effort basis, with a time limit. If it fails, the registration still stands.
 5. The browser retries automatically, with backoff, on network errors and 5xx only. Every attempt of one registration carries the same `submissionId` (`donors.submission_id`, unique); if the response was lost, the server replays the original result instead of registering twice. A replay never re-sends the email.
 6. Answers and the CPR photo are kept as a draft in `sessionStorage` (this tab only, 2 hours) and restored with Continue; they are cleared on success.
-7. The confirmation email and the PDF are sent if the email budget allows; otherwise the daily cron retries.
+7. The confirmation email and the PDF are sent right after the response (`after()`), if the email budget allows; otherwise the daily cron retries. The success page says the email is on its way.
 
 Queue numbers for walk-ins and desk check-ins come from one function, `next_queue_number()`, under a row lock on the event, so they never clash or repeat.
 

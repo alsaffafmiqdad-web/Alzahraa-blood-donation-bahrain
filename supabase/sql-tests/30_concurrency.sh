@@ -21,6 +21,18 @@ SQL
 $P -c "grant select on t.donor_ids to authenticated; grant usage on schema t to authenticated;"
 pgbench -n -f $T/checkin.sql -c 12 -j 4 -t 40 $DB > $T/pgb1.log 2>&1
 grep -E "number of failed transactions|processed" $T/pgb1.log | tr '\n' ' '; echo
+# random(0,59) x 480 leaves a donor unpicked about 2% of runs, so add a deterministic sweep that
+# touches every donor exactly once (concurrently); already-checked-in donors are a no-op.
+$P -c "drop sequence if exists t.sweep; create sequence t.sweep minvalue 0; grant usage on sequence t.sweep to authenticated;"
+cat > $T/sweep.sql <<'SQL'
+select nextval('t.sweep') % 60 as i \gset
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','aaaaaaaa-0000-4000-8000-000000000001', true);
+select queue_number from public.check_in_donor((select id from t.donor_ids where i = :i));
+commit;
+SQL
+pgbench -n -f $T/sweep.sql -c 6 -j 3 -t 10 $DB > $T/pgb1b.log 2>&1
 checked=$($P -c "select count(*) from public.donors where queue_number is not null")
 dups=$($P -c "select count(*) from (select queue_number from public.donors where queue_number is not null group by 1 having count(*)>1) x")
 mx=$($P -c "select coalesce(max(queue_number),0) from public.donors")

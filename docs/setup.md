@@ -51,7 +51,7 @@ If you ever paste a migration into the SQL editor instead, record it as applied 
 
 Without either, signups still work and emails stay queued.
 
-The app keeps a rolling 24-hour budget (`EMAIL_DAILY_BUDGET`). If you leave it empty the default is 450 for Gmail (Gmail allows about 500 a day, shared with any manual sending from the account) and 95 for Resend (free plan: 100). A signup sends straight away if the budget allows; otherwise the email waits for the daily cron, which retries the oldest first and gives up on a donor after 5 failed attempts. The admin "Send email" button sends one immediately, still within the budget.
+The app keeps a rolling 24-hour budget (`EMAIL_DAILY_BUDGET`). If you leave it empty the default is 450 for Gmail (Gmail allows about 500 a day, shared with any manual sending from the account) and 95 for Resend (free plan: 100). A signup sends the email right after it responds, if the budget allows; otherwise the email waits for the daily cron, which retries the oldest first and gives up on a donor after 5 failed attempts. The admin "Send email" button sends one immediately, still within the budget.
 
 ### Discord alerts
 

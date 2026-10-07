@@ -30,8 +30,9 @@ vi.mock("@/lib/supabase/admin", async (orig) => {
 });
 
 import { POST } from "@/app/api/signup/route";
-import { CPR_IMAGE_CLEANUP_DEADLINE_MS, CPR_IMAGE_DEADLINE_MS } from "@/lib/db/cpr-image";
+import { CPR_IMAGE_CLEANUP_DEADLINE_MS, CPR_IMAGE_DEADLINE_MS, CPR_IMAGE_LINK_DEADLINE_MS } from "@/lib/db/cpr-image";
 import { resetEnvCache } from "@/lib/env";
+import { flushAfter } from "../helpers/after";
 import { multipartRequest } from "../helpers/multipart";
 
 const good = {
@@ -85,6 +86,7 @@ describe("signup when Storage is slow", () => {
     const res = await POST(multipartRequest(good));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, ref: "ABCDEF12" });
+    await flushAfter();
     expect(m.sendDonorEmail).toHaveBeenCalledWith(ID);
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining(`cpr image error donor=${ID}`));
     expect(h.clientOpts[0]).toEqual({ deadlineMs: CPR_IMAGE_DEADLINE_MS });
@@ -112,6 +114,10 @@ describe("signup when Storage is slow", () => {
     const res = await POST(multipartRequest(good));
     expect(res.status).toBe(200);
     expect(calls.some((c) => c.method === "DELETE" && c.url.includes("/storage/v1/object/cpr-images"))).toBe(true);
-    expect(h.clientOpts).toEqual([{ deadlineMs: CPR_IMAGE_DEADLINE_MS }, { deadlineMs: CPR_IMAGE_CLEANUP_DEADLINE_MS }]);
+    expect(h.clientOpts).toEqual([
+      { deadlineMs: CPR_IMAGE_DEADLINE_MS },
+      { deadlineMs: CPR_IMAGE_LINK_DEADLINE_MS },
+      { deadlineMs: CPR_IMAGE_CLEANUP_DEADLINE_MS },
+    ]);
   });
 });
