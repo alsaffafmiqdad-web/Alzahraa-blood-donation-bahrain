@@ -4,7 +4,7 @@ import { serverEnv } from "@/lib/env";
 
 /**
  * A short-lived, signed token that lets the person who just registered download their own donor
- * card once from the success page. Format: `<donorId>.<expiresEpochSeconds>.<base64url hmac>`.
+ * card from the success page for 2 hours. Format: `<donorId>.<expiresEpochSeconds>.<base64url hmac>`.
  * The key is derived from RATE_LIMIT_SALT with a fixed label (domain separation), so no extra
  * environment variable is needed. The token never goes into a URL: it travels in the signup JSON
  * response, sessionStorage and a POST body.

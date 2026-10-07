@@ -117,6 +117,27 @@ begin
   call t.check('service_role register_donor ok', t.attempt('service_role', null, $q$select public.register_donor('Svc','444444444','1990-01-01','33334444','a@b.com','O+',1::smallint,false,false,false,'{}')$q$), 'rows=1');
   call t.check('service_role register_walk_in_donor ok', t.attempt('service_role', null, $q$select * from public.register_walk_in_donor('Svc W','444444445','1990-01-01','33334445',null,'O+',false,false,false,'{}')$q$), 'rows=1');
   call t.check('service_role slot_availability ok', t.attempt('service_role', null, 'select * from public.slot_availability()'), 'rows=11');
+
+  -- 5. Grant regression: catalog-wide checks that catch a function or table a new migration forgot to revoke
+  perform t.chk('no public function executable by anon',
+    (select coalesce(string_agg(p.proname, ','), 'none') from pg_proc p
+      where p.pronamespace = 'public'::regnamespace
+        and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+        and has_function_privilege('anon', p.oid, 'execute')), 'none');
+  perform t.chk('only is_admin and check_in_donor executable by authenticated',
+    (select coalesce(string_agg(p.proname, ',' order by p.proname), 'none') from pg_proc p
+      where p.pronamespace = 'public'::regnamespace
+        and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+        and has_function_privilege('authenticated', p.oid, 'execute')), 'check_in_donor,is_admin');
+  perform t.chk('every security definer function in public sets search_path',
+    (select coalesce(string_agg(p.proname, ','), 'none') from pg_proc p
+      where p.pronamespace = 'public'::regnamespace and p.prosecdef
+        and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+        and not exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c where c like 'search_path=%')), 'none');
+  perform t.chk('anon has no privilege on any public table',
+    (select coalesce(string_agg(c.relname, ','), 'none') from pg_class c
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'v', 'm', 'p', 'f')
+        and has_table_privilege('anon', c.oid, 'select, insert, update, delete, truncate, references, trigger')), 'none');
 end $$;
 
 select case when ok then 'PASS' else 'FAIL' end as r, name, detail from t.results where not ok;

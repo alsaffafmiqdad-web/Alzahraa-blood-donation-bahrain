@@ -5,6 +5,8 @@ export const RETENTION_MONTHS = 3;
 export const AGE_MIN = 18;
 export const AGE_MAX = 65;
 export const SIGNUP_RATE_LIMIT = { limit: 25, windowSeconds: 600 };
+/** Failed admin sign-ins allowed per hashed client IP per window. */
+export const LOGIN_RATE_LIMIT = { limit: 10, windowSeconds: 900 };
 export const EMAIL_MAX_ATTEMPTS = 5;
 /** Default emails per rolling 24h: Gmail allows about 500, Resend free plan 100. */
 export const GMAIL_DEFAULT_BUDGET = 450;

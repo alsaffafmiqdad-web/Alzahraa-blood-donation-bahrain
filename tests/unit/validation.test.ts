@@ -91,6 +91,17 @@ describe("signupSchema", () => {
     const r = signupSchema.safeParse({ ...good, fullName: "  Ali   bin\n Hasan " });
     expect(r.success && r.data.fullName).toBe("Ali bin Hasan");
   });
+  it("accepts Arabic and English names with diacritics, apostrophes and hyphens", () => {
+    for (const fullName of ["علي حسن", "عَلِيّ بن حسن", "عبد الله آل خليفة", "Ali Hasan", "Mary-Jane O'Neil", "Zoë D’Souza"]) {
+      expect(signupSchema.safeParse({ ...good, fullName }).success, fullName).toBe(true);
+    }
+  });
+  it("rejects names with digits or symbols", () => {
+    for (const fullName of ["Ali 2", "علي ٣", "Ali@Hasan", "Ali_Hasan", "Ali.Hasan", "<b>Ali</b>", "Ali 😀", "-'-"]) {
+      expect(codes({ ...good, fullName }).fullName, fullName).toBe("name_invalid");
+    }
+    expect(codes({ ...good, fullName: "   " }).fullName).toBe("name_required");
+  });
   it("rejects a future or impossible dob", () => {
     expect(codes({ ...good, dob: "2999-01-01" }).dob).toBe("dob_future");
     expect(codes({ ...good, dob: "2020-02-30" }).dob).toBe("dob_invalid");

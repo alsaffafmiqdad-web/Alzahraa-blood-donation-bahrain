@@ -21,7 +21,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   },
 }));
 
-import { attachCprImage, CPR_IMAGE_CLEANUP_DEADLINE_MS, CPR_IMAGE_DEADLINE_MS } from "@/lib/db/cpr-image";
+import { attachCprImage, CPR_IMAGE_CLEANUP_DEADLINE_MS, CPR_IMAGE_DEADLINE_MS, CPR_IMAGE_LINK_DEADLINE_MS } from "@/lib/db/cpr-image";
 import { createAdmin } from "@/lib/db/admins";
 
 const ID = "abcdef12-3456-4890-8bcd-ef1234567890";
@@ -44,7 +44,7 @@ describe("attachCprImage", () => {
     expect(h.upload).toHaveBeenCalledWith(`${ID}/cpr.png`, expect.anything(), { contentType: "image/png", upsert: false });
     expect(h.update).toHaveBeenCalledWith({ cpr_image_path: `${ID}/cpr.png` });
     expect(h.eq).toHaveBeenCalledWith("id", ID);
-    expect(h.clientOpts).toEqual([{ deadlineMs: CPR_IMAGE_DEADLINE_MS }]);
+    expect(h.clientOpts).toEqual([{ deadlineMs: CPR_IMAGE_DEADLINE_MS }, { deadlineMs: CPR_IMAGE_LINK_DEADLINE_MS }]);
   });
   it("returns false (never throws) when the upload fails, and does not update the row", async () => {
     h.upload.mockResolvedValue({ error: { message: "boom" } });
@@ -56,7 +56,11 @@ describe("attachCprImage", () => {
     h.eq.mockResolvedValue({ error: { message: "rls" } });
     expect(await attachCprImage(ID, new Uint8Array([1]), "jpg")).toBe(false);
     expect(h.remove).toHaveBeenCalledWith([`${ID}/cpr.jpg`]);
-    expect(h.clientOpts).toEqual([{ deadlineMs: CPR_IMAGE_DEADLINE_MS }, { deadlineMs: CPR_IMAGE_CLEANUP_DEADLINE_MS }]);
+    expect(h.clientOpts).toEqual([
+      { deadlineMs: CPR_IMAGE_DEADLINE_MS },
+      { deadlineMs: CPR_IMAGE_LINK_DEADLINE_MS },
+      { deadlineMs: CPR_IMAGE_CLEANUP_DEADLINE_MS },
+    ]);
   });
   it("still returns false without throwing when the cleanup remove rejects", async () => {
     h.eq.mockResolvedValue({ error: { message: "rls" } });

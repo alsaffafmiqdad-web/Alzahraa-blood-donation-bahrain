@@ -36,6 +36,8 @@ Sign in at http://localhost:3000/admin/login. See [docs/setup.md](docs/setup.md)
 | `pnpm typecheck` / `pnpm lint` / `pnpm build` | Static checks and production build |
 | `bash supabase/sql-tests/run.sh` | SQL tests against a local Postgres |
 | `pnpm dlx supabase test db` | pgTAP tests on the local Supabase database |
+| `pnpm loadtest` | Load test the signup path (local by default, after `pnpm build`) |
+| `pnpm loadtest:cleanup` | Remove load test donors, photos and rate-limit rows; restore the local event |
 
 ## Documentation
 

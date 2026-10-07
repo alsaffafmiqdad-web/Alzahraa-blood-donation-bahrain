@@ -20,6 +20,7 @@ vi.mock("@/lib/db/cpr-image", () => ({ attachCprImage: m.attachCprImage }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: m.sendDonorEmail }));
 
 import { POST } from "@/app/api/signup/route";
+import { flushAfter } from "../helpers/after";
 import { JPEG, multipartRequest } from "../helpers/multipart";
 
 const good = {
@@ -120,6 +121,7 @@ describe("signup CPR image: extra cases", () => {
     m.attachCprImage.mockResolvedValue(false);
     const res = await POST(multipartRequest(good));
     expect(res.status).toBe(200);
+    await flushAfter();
     expect(m.sendDonorEmail).toHaveBeenCalled();
   });
 });

@@ -23,7 +23,9 @@ vi.mock("@/lib/alert", () => ({ reportAlert: m.reportAlert }));
 vi.mock("@/lib/db/cpr-image", () => ({ attachCprImage: m.attachCprImage }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: m.sendDonorEmail }));
 
-import { POST } from "@/app/api/signup/route";
+import { POST, maxDuration } from "@/app/api/signup/route";
+import { SUBMIT_TIMEOUT_MS } from "@/lib/submit-retry";
+import { discardAfter, flushAfter } from "../helpers/after";
 import { JPEG, PNG, multipartRequest } from "../helpers/multipart";
 
 const good = {
@@ -63,6 +65,22 @@ beforeEach(() => {
   m.registerDonor.mockResolvedValue({ ok: true, id: ID });
   m.sendDonorEmail.mockResolvedValue("sent");
   m.attachCprImage.mockResolvedValue(true);
+});
+
+describe("signup time budget", () => {
+  it("fits the photo budgets inside maxDuration, and maxDuration inside the form timeout", async () => {
+    const { CPR_IMAGE_CLEANUP_DEADLINE_MS, CPR_IMAGE_DEADLINE_MS, CPR_IMAGE_LINK_DEADLINE_MS } =
+      await vi.importActual<typeof import("@/lib/db/cpr-image")>("@/lib/db/cpr-image");
+    expect(CPR_IMAGE_DEADLINE_MS).toBeGreaterThanOrEqual(20_000);
+    expect(CPR_IMAGE_DEADLINE_MS + CPR_IMAGE_LINK_DEADLINE_MS + CPR_IMAGE_CLEANUP_DEADLINE_MS).toBeLessThan(maxDuration * 1000);
+    expect(maxDuration * 1000).toBeLessThan(SUBMIT_TIMEOUT_MS);
+  });
+  it("keeps the load test's limits in step with the route and the form", async () => {
+    const lt = await import("../../scripts/loadtest/lib.mjs");
+    expect(lt.LATENCY_HARD_LIMIT_MS).toBe(maxDuration * 1000);
+    const parsed = lt.parseArgs([]);
+    expect(parsed.ok && parsed.options.timeoutMs).toBe(SUBMIT_TIMEOUT_MS);
+  });
 });
 
 describe("POST /api/signup", () => {
@@ -138,16 +156,26 @@ describe("POST /api/signup", () => {
     m.registerDonor.mockResolvedValue({ ok: false, reason: "slot_unavailable" });
     expect((await POST(req(good))).status).toBe(409);
   });
-  it("200 with email sent", async () => {
+  it("200 with the email sent after the response", async () => {
     const res = await POST(req(good));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, ref: "ABCDEF12", slotId: 3, emailStatus: "sent" });
+    expect(await res.json()).toEqual({ ok: true, ref: "ABCDEF12", slotId: 3, emailStatus: "sending" });
+    await flushAfter();
     expect(m.sendDonorEmail).toHaveBeenCalledWith(ID);
   });
-  it("reports a failed email as queued", async () => {
+  it("does not wait for the email: responds even while the send never finishes", async () => {
+    m.sendDonorEmail.mockReturnValue(new Promise(() => {}));
+    const res = await POST(req(good));
+    expect(res.status).toBe(200);
+    expect((await res.json()).emailStatus).toBe("sending");
+    discardAfter();
+  });
+  it("a failed email doesn't change the response", async () => {
     m.sendDonorEmail.mockResolvedValue("failed");
     const body = await (await POST(req(good))).json();
-    expect(body.emailStatus).toBe("queued");
+    expect(body.emailStatus).toBe("sending");
+    await flushAfter();
+    expect(m.sendDonorEmail).toHaveBeenCalledWith(ID);
   });
   it("sends no email when there is no address", async () => {
     const { email, ...rest } = good;
@@ -280,7 +308,8 @@ describe("POST /api/signup", () => {
       expect(res.status).toBe(200);
       expect(m.registerDonor).toHaveBeenCalledWith(expect.objectContaining({ slotId: null }));
       const body = await res.json();
-      expect(body).toMatchObject({ ok: true, ref: "ABCDEF12", walkIn: true, queueNumber: 7, emailStatus: "sent" });
+      expect(body).toMatchObject({ ok: true, ref: "ABCDEF12", walkIn: true, queueNumber: 7, emailStatus: "sending" });
+      await flushAfter();
       expect(body).not.toHaveProperty("slotId");
       expect(m.sendDonorEmail).toHaveBeenCalledWith(ID);
       expect(m.attachCprImage).toHaveBeenCalledTimes(1);
@@ -390,7 +419,8 @@ describe("POST /api/signup idempotency and alerts", () => {
     const res = await POST(req({ ...good, submissionId: SID }));
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body).toMatchObject({ ok: true, slotId: 3, emailStatus: "queued" });
+    expect(body).toMatchObject({ ok: true, slotId: 3, emailStatus: "sending" });
+    await flushAfter();
     expect(m.registerDonor).not.toHaveBeenCalled();
     expect(m.sendDonorEmail).not.toHaveBeenCalled();
   });

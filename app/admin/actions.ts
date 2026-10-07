@@ -1,16 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { checkInNotice } from "@/lib/check-in-notice";
 import { parseFilters, urlSafeSearch, type Status } from "@/lib/donor-filters";
 import { sendDonorEmail, type EmailOutcome } from "@/lib/email/dispatch";
-import { CPR_IMAGE_BUCKET } from "@/lib/cpr-image";
+import { CPR_IMAGE_BUCKET, cprImagePath } from "@/lib/cpr-image";
 import { createAdmin } from "@/lib/db/admins";
 import { formatDateShort } from "@/lib/format";
 import { en } from "@/lib/i18n/dictionaries/en";
+import { checkLoginRateLimit, ipFromHeaders, recordLoginFailure } from "@/lib/rate-limit";
 import { computeFlags } from "@/lib/screening";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -56,9 +58,15 @@ function pgCode(e: unknown): string | undefined {
 export async function signIn(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = loginSchema.safeParse(formToObject(formData));
   if (!parsed.success) return { ok: false, error: "Invalid email or password" };
+  // Failed attempts per hashed client IP; the message stays generic either way.
+  const ip = ipFromHeaders(await headers());
+  if (!(await checkLoginRateLimit(ip))) return { ok: false, error: "Invalid email or password" };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) return { ok: false, error: "Invalid email or password" };
+  if (error) {
+    await recordLoginFailure(ip);
+    return { ok: false, error: "Invalid email or password" };
+  }
   redirect("/admin");
 }
 
@@ -315,11 +323,13 @@ export async function deleteDonor(donorId: string): Promise<SimpleResult> {
     console.error(`deleteDonor failed donor=${id.data}: ${error.message}`);
     return { ok: false, error: "Could not delete the donor" };
   }
-  if (imagePath) {
-    const { error: removeError } = await supabase.storage.from(CPR_IMAGE_BUCKET).remove([imagePath]);
-    if (removeError) {
-      console.error(`deleteDonor: cpr image remove failed donor=${id.data}: ${removeError.message}`);
-    }
+  // An object can exist while cpr_image_path is null (a timed-out upload), so remove every possible path.
+  const paths = [...new Set([imagePath, cprImagePath(id.data, "jpg"), cprImagePath(id.data, "png"), cprImagePath(id.data, "webp")])].filter(
+    (p): p is string => !!p,
+  );
+  const { error: removeError } = await supabase.storage.from(CPR_IMAGE_BUCKET).remove(paths);
+  if (removeError) {
+    console.error(`deleteDonor: cpr image remove failed donor=${id.data}: ${removeError.message}`);
   }
   revalidatePath("/admin");
   return { ok: true };

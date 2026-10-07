@@ -2,7 +2,8 @@
 
 export const MAX_AUTO_RETRIES = 2;
 export const RETRY_DELAYS_MS = [1500, 4000] as const;
-export const SUBMIT_TIMEOUT_MS = 40_000;
+/** Longer than the signup route's maxDuration (60 s), so the form never gives up on a request the server is still finishing. */
+export const SUBMIT_TIMEOUT_MS = 65_000;
 export const TOKEN_WAIT_MS = 20_000;
 
 export type SubmitOutcome =

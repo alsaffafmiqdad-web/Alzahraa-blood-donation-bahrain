@@ -102,6 +102,9 @@ describe("SignupForm", () => {
       expect(html).toContain('aria-describedby="bt-hint"');
       expect(html).toContain('aria-labelledby="step-name-title"');
     });
+    it("renders an empty live region for the CPR prefill hint", () => {
+      expect(html).toContain('<p id="f-dob-prefill" aria-live="polite" class="text-sm text-ink-soft"></p>');
+    });
     it("marks required controls and keeps email optional", () => {
       expect(html).toContain('aria-required="true"');
       expect(html).toMatch(/<input[^>]*id="f-email"(?![^>]*aria-required)[^>]*>/);

@@ -5,11 +5,16 @@ import { emailConfig } from "@/lib/env";
 import { buildConfirmationEmail, type ConfirmationEmailData } from "@/lib/email/templates";
 
 /** Safe summary of an SMTP failure: code and a short message only, never the server response, command or an address. */
+/** Replaces anything that looks like an email address. */
+function redactEmails(s: string): string {
+  return s.replace(/[^\s@<>"']+@[^\s@<>"']+/g, "[email]");
+}
+
 function smtpError(e: unknown): string {
   const err = (e ?? {}) as { code?: unknown; responseCode?: unknown; message?: unknown };
   const code = typeof err.code === "string" ? err.code : undefined;
   const responseCode = typeof err.responseCode === "number" ? err.responseCode : undefined;
-  const message = typeof err.message === "string" ? err.message : "unknown";
+  const message = redactEmails(typeof err.message === "string" ? err.message : "unknown");
   return `smtp ${code ?? "error"}${responseCode ? " " + responseCode : ""}: ${message.slice(0, 160)}`;
 }
 
@@ -31,7 +36,7 @@ export async function sendConfirmationEmail(
       replyTo: data.org.email || undefined,
       attachments: [{ filename: "donor-card.pdf", content: pdf }],
     });
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: redactEmails(error.message) };
     return { ok: true };
   }
 
