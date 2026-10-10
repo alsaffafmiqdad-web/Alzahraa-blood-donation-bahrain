@@ -18,11 +18,11 @@ insert into public.donors (id, full_name, cpr, source, consent, status) values
   ('44444444-4444-4444-8444-444444444444', 'Late Arrival', '200000004', 'walk_in', true, 'no_show'),
   ('55555555-5555-4555-8555-555555555555', 'Deferred One', '200000005', 'walk_in', true, 'deferred');
 
--- ===== RLS enabled on all 7 tables =====
+-- ===== RLS enabled on every public table =====
 select is(
   (select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity),
-  7, 'RLS is enabled on all 7 public tables');
+    where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity),
+  0, 'RLS is enabled on every public table');
 
 -- ===== anon =====
 set local role anon;
