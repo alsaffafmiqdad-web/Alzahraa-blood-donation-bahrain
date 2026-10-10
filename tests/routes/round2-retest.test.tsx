@@ -26,6 +26,7 @@ vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: vi.fn() }));
 import { searchDonors } from "@/app/admin/actions";
 import { signupClientSchema, signupSchema } from "@/lib/validation";
 import { checkInNotice } from "@/lib/check-in-notice";
+import { DEFAULT_STATUS_LABELS } from "@/lib/status-labels";
 import type { CheckInResult } from "@/app/admin/action-types";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -124,21 +125,21 @@ describe("M4 check-in notices never show queue #null", () => {
       for (const alreadyCheckedIn of [true, false]) results.push({ ok: true, queueNumber, alreadyCheckedIn, status });
   it("exhaustive: no combination prints null/undefined/NaN", () => {
     for (const r of results) {
-      const n = checkInNotice("Ali", r);
+      const n = checkInNotice("Ali", r, DEFAULT_STATUS_LABELS);
       expect(n.text).not.toMatch(/null|undefined|NaN/);
     }
   });
   it("no_show checked in (fresh) is a success with its queue number", () => {
-    const n = checkInNotice("Ali", { ok: true, queueNumber: 12, alreadyCheckedIn: false, status: "waiting" as never });
+    const n = checkInNotice("Ali", { ok: true, queueNumber: 12, alreadyCheckedIn: false, status: "waiting" as never }, DEFAULT_STATUS_LABELS);
     expect(n).toEqual({ kind: "success", text: "Ali checked in, queue #12" });
   });
   it("deferred refusal is an error with a real explanation", () => {
-    const n = checkInNotice("Ali", { ok: true, queueNumber: null, alreadyCheckedIn: true, status: "deferred" as never });
+    const n = checkInNotice("Ali", { ok: true, queueNumber: null, alreadyCheckedIn: true, status: "deferred" as never }, DEFAULT_STATUS_LABELS);
     expect(n.kind).toBe("error");
     expect(n.text).toMatch(/Deferred.*cannot be checked in/);
   });
   it("a database error is passed through as an error", () => {
-    expect(checkInNotice("Ali", { ok: false, error: "boom" })).toEqual({ kind: "error", text: "boom" });
+    expect(checkInNotice("Ali", { ok: false, error: "boom" }, DEFAULT_STATUS_LABELS)).toEqual({ kind: "error", text: "boom" });
   });
 });
 

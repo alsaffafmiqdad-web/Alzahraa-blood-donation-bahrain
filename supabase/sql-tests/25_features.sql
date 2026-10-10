@@ -187,5 +187,40 @@ begin
   perform t.chk('repeat leaves queue_counter unchanged', (select queue_counter::text from public.event), n1::text);
 end $$;
 
+-- theme, link preview image, WhatsApp number, status labels
+do $$
+declare adm constant text := 'aaaaaaaa-0000-4000-8000-000000000001'; other constant text := 'bbbbbbbb-0000-4000-8000-000000000002';
+begin
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform t.chk('event theme_accent default', (select theme_accent from public.event), '#093f4c');
+  perform t.chk('event theme_background default', (select theme_background from public.event), '#fbf7f2');
+  perform t.chk('event whatsapp_number default', (select whatsapp_number from public.event), '');
+  perform t.chk('event og_image_path default', (select coalesce(og_image_path, 'null') from public.event), 'null');
+  perform t.chk('theme_accent red violates the check', t.attempt(current_user, null, $q$update public.event set theme_accent = 'red'$q$), 'error:23514');
+  perform t.chk('og_image_path x.jpg violates the check', t.attempt(current_user, null, $q$update public.event set og_image_path = 'x.jpg'$q$), 'error:23514');
+  perform t.chk('whatsapp_number 12 violates the check', t.attempt(current_user, null, $q$update public.event set whatsapp_number = '12'$q$), 'error:23514');
+  perform t.chk('whatsapp_number 97333334444 is accepted', t.attempt(current_user, null, $q$update public.event set whatsapp_number = '97333334444'$q$), 'rows=1');
+  perform t.chk('og_image_path og/<13 digits>.png is accepted', t.attempt(current_user, null, $q$update public.event set og_image_path = 'og/1760000000000.png'$q$), 'rows=1');
+
+  perform t.chk('status_labels has 7 seeded rows', (select count(*)::text from public.status_labels), '7');
+  perform t.chk('status_labels seed names', (select string_agg(label, ',' order by status) from public.status_labels),
+    'Deferred,Donation Reception,No show (after half time),Registered,Doctor Station,Verified (before the event),Registration Station');
+  perform t.chk('empty label violates the check', t.attempt(current_user, null, $q$update public.status_labels set label = '' where status = 'registered'$q$), 'error:23514');
+  perform t.chk('en dash label violates the check', t.attempt(current_user, null, format($q$update public.status_labels set label = 'A%sB' where status = 'registered'$q$, U&'\2013')), 'error:23514');
+  perform t.chk('em dash label violates the check', t.attempt(current_user, null, format($q$update public.status_labels set label = 'A%sB' where status = 'registered'$q$, U&'\2014')), 'error:23514');
+  perform t.chk('41 character label violates the check', t.attempt(current_user, null, format($q$update public.status_labels set label = %L where status = 'registered'$q$, repeat('x', 41))), 'error:23514');
+  perform t.chk('untrimmed label violates the check', t.attempt(current_user, null, $q$update public.status_labels set label = ' Lead' where status = 'registered'$q$), 'error:23514');
+  perform t.chk('duplicate label (case-insensitive) is a unique violation', t.attempt(current_user, null, $q$update public.status_labels set label = 'doctor station' where status = 'registered'$q$), 'error:23505');
+  perform t.chk('admin can update a label', t.attempt('authenticated', adm, $q$update public.status_labels set label = 'Desk A' where status = 'registered'$q$), 'rows=1');
+  perform t.chk('admin can read labels', t.attempt('authenticated', adm, $q$select * from public.status_labels$q$), 'rows=7');
+  perform t.chk('non-admin updates 0 rows', t.attempt('authenticated', other, $q$update public.status_labels set label = 'Hacked' where status = 'registered'$q$), 'rows=0');
+  perform t.chk('non-admin reads 0 rows', t.attempt('authenticated', other, $q$select * from public.status_labels$q$), 'rows=0');
+  perform t.chk('authenticated cannot insert', t.attempt('authenticated', adm, $q$insert into public.status_labels values ('waiting', 'X')$q$), 'denied');
+  perform t.chk('authenticated cannot delete', t.attempt('authenticated', adm, $q$delete from public.status_labels$q$), 'denied');
+  perform t.chk('authenticated cannot change the key', t.attempt('authenticated', adm, $q$update public.status_labels set status = 'waiting' where status = 'registered'$q$), 'denied');
+  perform t.chk('anon cannot select', t.attempt('anon', null, $q$select * from public.status_labels$q$), 'denied');
+  perform t.chk('service_role can update', t.attempt('service_role', null, $q$update public.status_labels set label = 'Svc' where status = 'registered'$q$), 'rows=1');
+end $$;
+
 select 'FAIL' r, name, detail from t.results where not ok;
 select count(*) filter (where ok) as passed, count(*) filter (where not ok) as failed from t.results;

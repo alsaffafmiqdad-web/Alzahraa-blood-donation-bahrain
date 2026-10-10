@@ -55,7 +55,7 @@ The app keeps a rolling 24-hour budget (`EMAIL_DAILY_BUDGET`). If you leave it e
 
 ### Discord alerts
 
-Create a webhook in a private Discord channel and set `DISCORD_WEBHOOK_URL` (server only). Alerts contain only event names, error codes and donor IDs, never a name, CPR, phone number or email. They are deduplicated: one per kind every 5 minutes, and at most 10 a minute per server instance.
+Create a webhook in a private Discord channel and set `DISCORD_WEBHOOK_URL` (server only). Alerts contain only event names, error codes and donor IDs, never a name, CPR, phone number or email. They are deduplicated: one per kind every 5 minutes, and at most 10 a minute per server instance. Signup submission notices (one for every request to the signup route, with the outcome code and no personal data) use the same webhook but are separate from alerts: they are not deduplicated and are capped at 25 a minute per server instance.
 
 ## Cloudflare Turnstile
 

@@ -26,6 +26,7 @@ const render = (walkIn: boolean) =>
       slotHint="hint"
       walkIn={walkIn}
       event={{ name: "Drive Name", dateText: "16 October 2026", timeText: "8:30 AM", location: "Hall" }}
+      whatsappUrl={null}
     />,
   );
 const ar = getDictionary("ar");

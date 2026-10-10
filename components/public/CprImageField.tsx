@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { Camera, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import { reportClientError } from "@/lib/client-log";
 import { createLatestPick } from "@/lib/latest-pick";
 import { prepareCprImage, type PrepareResult } from "@/lib/prepare-cpr-image";
 import { cn } from "@/lib/utils";
 import { btnSecondary } from "@/components/public/button-classes";
+import { CprCardIcon } from "@/components/public/CprCardIcon";
 
 export type CprImageFieldHandle = { pick: (file: File) => void };
 
@@ -133,7 +134,7 @@ export function CprImageField({ dict, value, onChange, onBusyChange, error, labe
           {busy ? (
             <Loader2 className="size-8 animate-spin text-brand motion-reduce:animate-none" aria-hidden="true" />
           ) : (
-            <Camera className="size-8 text-brand" aria-hidden="true" />
+            <CprCardIcon />
           )}
           <span className="font-medium text-ink">{dict.join.cpr_drop_title}</span>
           <span className="hidden text-sm text-ink-soft sm:block">{dict.join.cpr_drop_desktop}</span>

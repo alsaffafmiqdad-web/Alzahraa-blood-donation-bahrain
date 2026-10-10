@@ -33,7 +33,9 @@ describe("i18n parity (independent check)", () => {
     expect(untranslated).toEqual([]);
   });
   it("English values contain no Arabic letters", () => {
-    expect(Object.entries(E).filter(([k, v]) => k !== "common.language" && ARABIC.test(v)).map(([k]) => k)).toEqual([]);
+    // common.ogImageAlt is the same bilingual link-preview alt text in both dictionaries, by design
+    const bilingual = ["common.language", "common.ogImageAlt"];
+    expect(Object.entries(E).filter(([k, v]) => !bilingual.includes(k) && ARABIC.test(v)).map(([k]) => k)).toEqual([]);
   });
   it("no em/en dashes in either dictionary", () => {
     for (const v of [...Object.values(A), ...Object.values(E)]) expect(v).not.toMatch(/[–—]/);

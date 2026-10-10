@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { getStatusLabels } from "@/lib/db/status-labels";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { SlotsManager, type SlotRow } from "@/components/admin/SlotsManager";
 
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SlotsPage() {
   const { supabase, displayName } = await requireAdmin();
+  const labels = await getStatusLabels(supabase);
   const [slotsRes, donorsRes] = await Promise.all([
     supabase.from("slots").select("id, starts_at, capacity, active").order("starts_at"),
     fetchAllRows<{ slot_id: number; status: string }>((from, to) =>
@@ -39,7 +41,7 @@ export default async function SlotsPage() {
       <p className="mb-4 text-sm text-ink-soft">
         The public form hides inactive slots and disables full ones. Staff adds can exceed capacity.
       </p>
-      <SlotsManager slots={rows} />
+      <SlotsManager slots={rows} donatedLabel={labels.donated} />
     </AdminShell>
   );
 }

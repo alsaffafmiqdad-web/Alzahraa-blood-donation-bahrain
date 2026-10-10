@@ -13,6 +13,7 @@ export type EventValues = {
   event_date: string;
   event_start_time: string;
   public_registration_open: boolean;
+  whatsapp_number: string;
 };
 
 const inputCls = "w-full rounded-md border border-line bg-white px-3 py-2 text-sm";
@@ -59,6 +60,25 @@ export function EventForm({ event }: { event: EventValues }) {
           On the event date, from this time, the public link registers donors as walk-ins, gives each one the next queue number, and does not ask them to choose a time.
         </p>
         {fe.event_start_time && <p className="mt-1 text-sm text-danger">{fe.event_start_time}</p>}
+      </div>
+      <div>
+        <label htmlFor="whatsapp_number" className="mb-1 block text-sm font-medium">
+          WhatsApp number
+        </label>
+        <input
+          id="whatsapp_number"
+          name="whatsapp_number"
+          type="text"
+          dir="ltr"
+          inputMode="tel"
+          defaultValue={event.whatsapp_number}
+          aria-describedby="whatsapp_number-hint"
+          className={inputCls}
+        />
+        <p id="whatsapp_number-hint" className="mt-1 text-sm text-ink-soft">
+          Shown as a WhatsApp button on the signup pages. Leave empty to hide the button.
+        </p>
+        {fe.whatsapp_number && <p className="mt-1 text-sm text-danger">{fe.whatsapp_number}</p>}
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input

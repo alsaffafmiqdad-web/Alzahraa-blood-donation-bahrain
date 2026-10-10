@@ -55,6 +55,26 @@ describe("CprImageField", () => {
     expect(html).toContain("Custom label");
     expect(html).not.toContain(dict.join.cpr_image_hint);
   });
+  it("the idle drop zone shows the id card icon, not a plain camera", () => {
+    const html = renderToStaticMarkup(
+      <CprImageField dict={getDictionary("en")} value={null} onChange={() => {}} onBusyChange={() => {}} />,
+    );
+    expect(html).toContain("lucide-id-card");
+    expect(html).toContain("lucide-camera");
+    expect(html).toContain("-bottom-1 -end-1");
+  });
+  it.each([
+    ["en", "Upload your CPR card"],
+    ["ar", "ارفع بطاقتك الشخصية"],
+  ] as const)("the step heading reads %s: %s", (locale, text) => {
+    const dict = getDictionary(locale);
+    expect(dict.join.q_photo).toBe(text);
+    expect(dict.join.q_photo_optional).toBe(locale === "en" ? `${text} (optional)` : `${text} (اختياري)`);
+    const html = renderToStaticMarkup(
+      <CprImageField dict={dict} value={null} onChange={() => {}} onBusyChange={() => {}} asHeading label={dict.join.q_photo} />,
+    );
+    expect(html).toContain(`<label for="f-cprImage">${text}</label>`);
+  });
   it("renders a dashed drop area and a screen-reader-only input", () => {
     const html = renderToStaticMarkup(
       <CprImageField dict={getDictionary("en")} value={null} onChange={() => {}} onBusyChange={() => {}} />,

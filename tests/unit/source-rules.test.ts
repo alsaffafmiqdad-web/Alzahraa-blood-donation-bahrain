@@ -24,11 +24,13 @@ describe("source rules", () => {
     );
     expect(bad).toEqual([]);
   });
-  it("never uses dangerouslySetInnerHTML", () => {
-    const bad = [...files("app"), ...files("components"), ...files("lib")].filter((f) =>
+  it("uses dangerouslySetInnerHTML only for the validated theme CSS in the two root layouts", () => {
+    const allowed = ["app/[locale]/layout.tsx", "app/admin/layout.tsx"];
+    const used = [...files("app"), ...files("components"), ...files("lib")].filter((f) =>
       read(f).includes("dangerouslySetInnerHTML"),
     );
-    expect(bad).toEqual([]);
+    expect(used.sort()).toEqual(allowed.sort());
+    for (const f of allowed) expect(read(f), f).toContain("__html: themeCss(settings)");
   });
   it("keeps the service role key in lib/env.ts and lib/supabase/admin.ts only", () => {
     const hits = [...files("app"), ...files("components"), ...files("lib"), "proxy.ts"].filter((f) =>

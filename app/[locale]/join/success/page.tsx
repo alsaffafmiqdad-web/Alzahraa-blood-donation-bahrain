@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { CardDownload } from "@/components/public/CardDownload";
 import { PageShell } from "@/components/public/PageShell";
 import { btnPrimary } from "@/components/public/button-classes";
-import { getEvent, getSlotAvailability } from "@/lib/db/public";
+import { getEvent, getSiteSettings, getSlotAvailability } from "@/lib/db/public";
+import { whatsAppUrl } from "@/lib/whatsapp";
 import { formatDate, formatSlot } from "@/lib/format";
 import { getDictionary, isLocale, t } from "@/lib/i18n";
 
@@ -25,6 +26,7 @@ export default async function SuccessPage({
   if (!isLocale(locale)) notFound();
   const sp = await searchParams;
   const dict = getDictionary(locale);
+  const whatsappUrl = whatsAppUrl((await getSiteSettings()).whatsappNumber);
   const one = (k: string) => {
     const v = sp[k];
     return Array.isArray(v) ? v[0] : v;
@@ -73,7 +75,7 @@ export default async function SuccessPage({
             : null;
 
   return (
-    <PageShell locale={locale} dict={dict}>
+    <PageShell locale={locale} dict={dict} whatsappUrl={whatsappUrl}>
     <div className="space-y-5">
       <h1 className="flex items-center gap-3 font-heading font-swash text-3xl font-bold text-ink">
         <CircleCheck className="size-8 shrink-0 text-success" aria-hidden="true" />

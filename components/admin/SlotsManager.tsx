@@ -94,7 +94,7 @@ function Row({ slot }: { slot: SlotRow }) {
   );
 }
 
-export function SlotsManager({ slots }: { slots: SlotRow[] }) {
+export function SlotsManager({ slots, donatedLabel }: { slots: SlotRow[]; donatedLabel: string }) {
   const [state, action, pending] = useActionState(createSlot, initialFormState);
   return (
     <div className="space-y-6">
@@ -107,7 +107,7 @@ export function SlotsManager({ slots }: { slots: SlotRow[] }) {
               <TableHead>Active</TableHead>
               <TableHead>Booked</TableHead>
               <TableHead>Checked in</TableHead>
-              <TableHead>Donated</TableHead>
+              <TableHead>{donatedLabel}</TableHead>
               <TableHead>Remaining</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>

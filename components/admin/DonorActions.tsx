@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { checkInDonor, deleteDonor, resendEmail, verifyDonor } from "@/app/admin/actions";
 import { checkInNotice, showCheckInNotice } from "@/lib/check-in-notice";
 import type { Status } from "@/lib/donor-filters";
+import type { StatusLabels } from "@/lib/status-labels";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -26,9 +27,10 @@ type Props = {
   status: Status;
   hasEmail: boolean;
   emailSent: boolean;
+  labels: StatusLabels;
 };
 
-export function DonorActions({ donorId, name, status, hasEmail, emailSent }: Props) {
+export function DonorActions({ donorId, name, status, hasEmail, emailSent, labels }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -38,7 +40,7 @@ export function DonorActions({ donorId, name, status, hasEmail, emailSent }: Pro
   function checkIn(thenPrint: boolean) {
     start(async () => {
       const res = await checkInDonor(donorId);
-      const notice = checkInNotice(name, res);
+      const notice = checkInNotice(name, res, labels);
       if (thenPrint && notice.kind === "error") toast.error(`Check-in failed (${notice.text}). Printing anyway.`);
       else showCheckInNotice(toast, notice);
       if (thenPrint) window.open(printUrl, "_blank");
@@ -79,7 +81,7 @@ export function DonorActions({ donorId, name, status, hasEmail, emailSent }: Pro
           Print
         </Link>
       </Button>
-      <StatusControl donorId={donorId} name={name} status={status} />
+      <StatusControl donorId={donorId} name={name} status={status} labels={labels} />
       <Button asChild variant="outline">
         <Link href={`/admin/donors/${donorId}/edit`}>Edit</Link>
       </Button>

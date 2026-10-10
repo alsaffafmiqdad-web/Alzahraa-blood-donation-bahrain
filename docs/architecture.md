@@ -38,9 +38,17 @@ Queue numbers for walk-ins and desk check-ins come from one function, `next_queu
 - The donor's PDF is the same A4 registration form the admins print, including the full CPR, flags and notes (owner decision). After signing up, the donor can download it for 2 hours with a signed token that is kept in `sessionStorage` and sent in a POST body, never in a URL.
 - The confirmation email body has no CPR, phone number or screening answers. The PDF is attached.
 - Discord alerts (`lib/alert.ts`) carry no personal data: only event names, codes and donor IDs. The browser reports failure codes to `/api/client-log` for the same channel.
+- Discord submission notices (`reportSubmission` in `lib/alert.ts`) send one message for every request that reaches `POST /api/signup`, whatever the outcome. They carry no personal data: the outcome code, mode, donor ID, queue number and the names of invalid fields with their error codes, never values. They are not deduplicated; they are capped at 25 a minute per server instance, and anything over the cap is counted in the next notice.
 - Gmail's Sent folder holds every donor PDF; delete it at the retention date.
 - The signup draft holds personal data and the CPR photo in `sessionStorage` until submit.
 - Security headers are set in `next.config.ts`.
+
+## Site settings and status names
+
+- The theme (accent and page background colours), the link preview image and the WhatsApp number live on the `event` row (`theme_accent`, `theme_background`, `og_image_path`, `whatsapp_number`) and are edited on `/admin/event`. `getSiteSettings()` (`lib/db/public.ts`) reads them for the public layout, the admin layout and the join and success pages. The accent must have 4.5:1 contrast with white, and the background 4.5:1 with the body text. The brand dark and tint colours are worked out from the accent (`lib/theme.ts`).
+- The link preview image is in the public `site-assets` storage bucket (JPEG or PNG, at most 900 KB, no personal data). Each upload gets a new path, and the old object is deleted after the row is updated. With no custom image the page uses `public/og-default.jpg`.
+- The WhatsApp button shows only while the number is set. The link is `https://wa.me/<digits>` with no message text.
+- Status display names live in `status_labels`, one row per status, and are used across the admin panel and the CSV export. They come from `getStatusLabels()` (`lib/db/status-labels.ts`); the fallback names are in `lib/status-labels.ts`. The seven status keys (`registered`, `verified`, `waiting`, `screening`, `donated`, `deferred`, `no_show`) are fixed: admins can rename them but not add, remove or reorder them. Donors never see a status; if one is ever shown to donors, it must come from the i18n dictionaries.
 
 ## Data and limits
 

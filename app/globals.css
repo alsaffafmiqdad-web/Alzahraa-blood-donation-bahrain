@@ -12,9 +12,9 @@
   --color-crimson: #9c1f2e;
   --color-crimson-dark: #7a1622;
   --color-blush: #f1dad2;
-  --color-brand: #6b2c6b; /* about 9.5:1 with white text */
-  --color-brand-dark: #561f56;
-  --color-brand-tint: #f3e6f3;
+  --color-brand: #093f4c; /* about 11.5:1 with white text */
+  --color-brand-dark: #07323d;
+  --color-brand-tint: #e6eced;
   --color-danger: #b42318; /* about 6.6:1 on white */
   --color-danger-dark: #912018;
   --color-danger-tint: #fef3f2;
@@ -62,18 +62,18 @@
   --card-foreground: #241f1c;
   --popover: #ffffff;
   --popover-foreground: #241f1c;
-  --primary: #6b2c6b;
+  --primary: #093f4c;
   --primary-foreground: #ffffff;
   --secondary: #f3ece3;
   --secondary-foreground: #241f1c;
   --muted: #f3ece3;
   --muted-foreground: #6b6259;
-  --accent: #f3e6f3;
+  --accent: #e6eced;
   --accent-foreground: #241f1c;
   --destructive: #b42318;
   --border: #e1d5c6;
   --input: #e1d5c6;
-  --ring: #6b2c6b;
+  --ring: #093f4c;
   --radius: 0.625rem;
 }
 

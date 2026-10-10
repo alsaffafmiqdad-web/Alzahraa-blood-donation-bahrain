@@ -13,12 +13,15 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe("plum tokens (R4)", () => {
+describe("accent tokens", () => {
   const css = read("app/globals.css");
-  it("defines the plum brand, brand-dark and brand-tint", () => {
-    expect(css).toMatch(/--color-brand:\s*#6b2c6b/i);
-    expect(css).toMatch(/--color-brand-dark:\s*#561f56/i);
-    expect(css).toMatch(/--color-brand-tint:\s*#f3e6f3/i);
+  it("defines the accent brand, brand-dark and brand-tint", () => {
+    expect(css).toMatch(/--color-brand:\s*#093f4c/i);
+    expect(css).toMatch(/--color-brand-dark:\s*#07323d/i);
+    expect(css).toMatch(/--color-brand-tint:\s*#e6eced/i);
+  });
+  it("no longer mentions the old plum", () => {
+    expect(css).not.toMatch(/#6b2c6b|#561f56|#f3e6f3/i);
   });
   it("defines separate danger tokens", () => {
     expect(css).toMatch(/--color-danger:/);

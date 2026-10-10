@@ -17,6 +17,9 @@ const SECTIONS = [
   ["no_sale_h", "no_sale_b"],
 ] as const;
 
+// Dynamic like join and success, so a theme change shows up without a rebuild.
+export const dynamic = "force-dynamic";
+
 export default async function PrivacyPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();

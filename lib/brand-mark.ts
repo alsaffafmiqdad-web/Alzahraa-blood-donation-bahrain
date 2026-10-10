@@ -5,4 +5,4 @@ export const BRAND_MARK_PATHS: readonly string[] = [
   "m2 15 6 6",
   "m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a1 1 0 0 0-2.75-2.91",
 ];
-export const BRAND_PLUM = "#6b2c6b";
+export const BRAND_ACCENT = "#093f4c";

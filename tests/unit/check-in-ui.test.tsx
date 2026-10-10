@@ -33,6 +33,17 @@ vi.mock("@/app/admin/actions", () => ({ checkInDonor: h.checkInDonor, setDonorSt
 import { DonorTable } from "@/components/admin/DonorTable";
 import { StatusControl } from "@/components/admin/StatusControl";
 import type { DonorListRow } from "@/lib/donor-filters";
+import type { StatusLabels } from "@/lib/status-labels";
+
+const labels: StatusLabels = {
+  registered: "Registered",
+  verified: "Verified",
+  waiting: "Waiting desk",
+  screening: "Screening",
+  donated: "Donated",
+  deferred: "On Hold",
+  no_show: "No show",
+};
 
 type El = ReactElement<{ children?: ReactNode; [k: string]: unknown }>;
 
@@ -74,7 +85,7 @@ beforeEach(() => {
 
 describe("StatusControl: choosing Waiting", () => {
   const choose = async (status: DonorListRow["status"]) => {
-    const tree = StatusControl({ donorId: "d1", name: "Ali", status }) as ReactElement;
+    const tree = StatusControl({ donorId: "d1", name: "Ali", status, labels }) as ReactElement;
     const select = find(tree, (e) => e.type === "select")[0]!;
     (select.props.onChange as (e: unknown) => void)({ target: { value: "waiting" } });
     await Promise.all(h.pending);
@@ -113,7 +124,7 @@ describe("StatusControl: choosing Waiting", () => {
 });
 
 describe("DonorTable check-in button", () => {
-  const table = (rows: DonorListRow[]) => DonorTable({ rows, totalCount: rows.length }) as ReactElement;
+  const table = (rows: DonorListRow[]) => DonorTable({ rows, totalCount: rows.length, labels }) as ReactElement;
   const buttons = (tree: ReactElement) =>
     find(tree, (e) => typeof e.type === "function" && (e.type as { name: string }).name === "CheckInButton");
 
@@ -137,7 +148,7 @@ describe("DonorTable check-in button", () => {
   it("a refused check-in shows the real error, never 'queue #null'", async () => {
     await click({ ok: true, queueNumber: null, alreadyCheckedIn: true, status: "deferred" });
     expect(h.toast.success).not.toHaveBeenCalled();
-    expect(h.toast.error.mock.calls[0]![0]).toContain("Deferred");
+    expect(h.toast.error.mock.calls[0]![0]).toContain("On Hold");
   });
   it("a server error is shown as is", async () => {
     await click({ ok: false, error: "Donor not found" });

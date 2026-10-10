@@ -54,8 +54,56 @@ export function formatAlert(
   return { content: lines.join("\n").slice(0, MAX_CONTENT), allowed_mentions: { parse: [] } };
 }
 
+export const SUBMISSION_OUTCOMES = [
+  "success",
+  "replay",
+  "validation",
+  "turnstile",
+  "rate_limited",
+  "registration_closed",
+  "duplicate_cpr",
+  "slot_full",
+  "slot_unavailable",
+  "too_large",
+  "bad_json",
+  "unsupported_media_type",
+  "server",
+] as const;
+export type SubmissionOutcome = (typeof SUBMISSION_OUTCOMES)[number];
+
+export type SubmissionNotice = {
+  outcome: SubmissionOutcome;
+  mode?: "slot" | "walk_in";
+  donorId?: string; // UUID only, dropped unless UUID_RE matches
+  queueNumber?: number | null;
+  fields?: Record<string, string>; // field key -> error code, never values
+};
+
+/** One notice per signup request. Carries no personal data: codes, mode, donor UUID and queue number only. */
+export function formatSubmission(
+  n: SubmissionNotice,
+  envLabel: string,
+  suppressed: number,
+): { content: string; allowed_mentions: { parse: [] } } {
+  const env = redact(envLabel, 20);
+  const ok = n.outcome === "success" || n.outcome === "replay";
+  const lines = [ok ? `**[${env}] signup ok**` : `**[${env}] signup failed: ${redact(n.outcome, 40)}**`];
+  if (n.outcome === "replay") lines.push("outcome: replay");
+  if (n.mode === "slot" || n.mode === "walk_in") lines.push(`mode: ${n.mode}`);
+  if (n.donorId && UUID_RE.test(n.donorId)) lines.push(`donor: ${n.donorId}`);
+  if (typeof n.queueNumber === "number" && Number.isFinite(n.queueNumber)) lines.push(`queue: ${Math.trunc(n.queueNumber)}`);
+  if (n.fields) {
+    const entries = Object.entries(n.fields)
+      .slice(0, 10)
+      .map(([k, v]) => `${redact(k, 40)}=${redact(String(v), 40)}`);
+    if (entries.length > 0) lines.push(`fields: ${entries.join(", ")}`);
+  }
+  if (suppressed > 0) lines.push(`suppressed since last: ${suppressed}`);
+  return { content: lines.join("\n").slice(0, MAX_CONTENT), allowed_mentions: { parse: [] } };
+}
+
 export function createAlertGate(opts: { dedupMs?: number; maxPerMinute?: number; now?: () => number } = {}) {
-  const { dedupMs = 300_000, maxPerMinute = 10, now = Date.now } = opts;
+  const { dedupMs = 300_000, maxPerMinute = 10, now = () => Date.now() } = opts;
   const lastSent = new Map<string, number>();
   let windowStart = 0;
   let inWindow = 0;

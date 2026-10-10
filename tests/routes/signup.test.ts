@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   attachCprImage: vi.fn(),
   findSubmission: vi.fn(),
   reportAlert: vi.fn(),
+  reportSubmission: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -19,7 +20,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: m.verifyTurnstile }));
 vi.mock("@/lib/db/public", () => ({ getEvent: m.getEvent, registerDonor: m.registerDonor, findSubmission: m.findSubmission }));
-vi.mock("@/lib/alert", () => ({ reportAlert: m.reportAlert }));
+vi.mock("@/lib/alert", () => ({ reportAlert: m.reportAlert, reportSubmission: m.reportSubmission }));
 vi.mock("@/lib/db/cpr-image", () => ({ attachCprImage: m.attachCprImage }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: m.sendDonorEmail }));
 
@@ -467,5 +468,111 @@ describe("POST /api/signup idempotency and alerts", () => {
     m.checkSignupRateLimit.mockResolvedValue(false);
     expect((await POST(req(good))).status).toBe(429);
     expect(m.reportAlert).toHaveBeenCalledWith({ event: "signup_rate_limited" });
+  });
+});
+
+describe("POST /api/signup Discord submission notices", () => {
+  /** The single notice for the request (the object is filled in before the route returns). */
+  function notice() {
+    expect(m.reportSubmission).toHaveBeenCalledTimes(1);
+    return m.reportSubmission.mock.calls[0]![0] as Record<string, unknown>;
+  }
+
+  it("success in slot mode", async () => {
+    expect((await POST(req(good))).status).toBe(200);
+    expect(notice()).toEqual({ outcome: "success", mode: "slot", donorId: ID });
+  });
+  it("success in walk-in mode carries the queue number", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-16T06:00:00Z"));
+      m.getEvent.mockResolvedValue({ event_date: "2026-10-16", event_start_time: "08:30:00", public_registration_open: true });
+      m.registerDonor.mockResolvedValue({ ok: true, id: ID, queueNumber: 7 });
+      const { slotId, ...goodNoSlot } = good;
+      void slotId;
+      expect((await POST(multipartRequest(goodNoSlot))).status).toBe(200);
+      expect(notice()).toEqual({ outcome: "success", mode: "walk_in", donorId: ID, queueNumber: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("replay", async () => {
+    m.findSubmission.mockResolvedValue({
+      id: ID,
+      cpr: good.cpr,
+      slotId: 3,
+      queueNumber: null,
+      email: null,
+      emailSent: false,
+      hasImage: true,
+    });
+    const SID = "aaaaaaaa-0000-4000-8000-0000000000aa";
+    expect((await POST(req({ ...good, submissionId: SID }))).status).toBe(200);
+    expect(notice()).toMatchObject({ outcome: "replay", mode: "slot", donorId: ID });
+  });
+  it("validation carries field codes only, never values", async () => {
+    expect((await POST(req({ ...good, cpr: "123" }))).status).toBe(400);
+    const n = notice();
+    expect(n).toMatchObject({ outcome: "validation", mode: "slot", fields: { cpr: "cpr_invalid" } });
+    expect(JSON.stringify(n)).not.toContain("123");
+  });
+  it("turnstile", async () => {
+    m.verifyTurnstile.mockResolvedValue(false);
+    await POST(req(good));
+    expect(notice()).toMatchObject({ outcome: "turnstile" });
+  });
+  it("rate_limited, before the body is read, and after Turnstile", async () => {
+    m.checkSignupRateLimit.mockResolvedValue(false);
+    await POST(req(good));
+    expect(notice()).toEqual({ outcome: "rate_limited" });
+    m.reportSubmission.mockClear();
+    m.checkSignupRateLimit.mockResolvedValue(true);
+    m.recordSignupAttempt.mockResolvedValue(false);
+    await POST(req(good));
+    expect(notice()).toMatchObject({ outcome: "rate_limited", mode: "slot" });
+  });
+  it("duplicate_cpr, slot_full and slot_unavailable", async () => {
+    for (const reason of ["duplicate_cpr", "slot_full", "slot_unavailable"]) {
+      m.reportSubmission.mockClear();
+      m.registerDonor.mockResolvedValue({ ok: false, reason });
+      await POST(req(good));
+      expect(notice()).toMatchObject({ outcome: reason, mode: "slot" });
+    }
+  });
+  it("registration_closed", async () => {
+    m.getEvent.mockResolvedValue({ event_date: "2026-10-16", public_registration_open: false });
+    await POST(req(good));
+    expect(notice()).toMatchObject({ outcome: "registration_closed", mode: "slot" });
+  });
+  it("registration_closed reported by the register function", async () => {
+    m.registerDonor.mockResolvedValue({ ok: false, reason: "registration_closed" });
+    expect((await POST(req(good))).status).toBe(403);
+    expect(notice()).toMatchObject({ outcome: "registration_closed" });
+  });
+  it("too_large, bad_json and unsupported_media_type (the early returns)", async () => {
+    await POST(req({ ...good, fullName: "a".repeat(11_000) }));
+    expect(notice()).toEqual({ outcome: "too_large" });
+    m.reportSubmission.mockClear();
+    await POST(req("{nope"));
+    expect(notice()).toEqual({ outcome: "bad_json" });
+    m.reportSubmission.mockClear();
+    await POST(req(good, { "content-type": "text/plain" }));
+    expect(notice()).toEqual({ outcome: "unsupported_media_type" });
+  });
+  it("server on a thrown error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.registerDonor.mockRejectedValue(new Error("boom"));
+    expect((await POST(req(good))).status).toBe(500);
+    expect(notice()).toMatchObject({ outcome: "server" });
+  });
+  it("never carries the CPR, name, phone or email from the request", async () => {
+    await POST(req(good));
+    await POST(req({ ...good, cpr: "123" }));
+    m.registerDonor.mockResolvedValue({ ok: false, reason: "duplicate_cpr" });
+    await POST(req(good));
+    const all = JSON.stringify(m.reportSubmission.mock.calls);
+    for (const secret of [good.cpr, good.fullName, "Ali", good.phone, good.email, good.dob]) {
+      expect(all).not.toContain(secret);
+    }
   });
 });
