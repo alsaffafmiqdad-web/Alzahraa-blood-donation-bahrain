@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
+const h = vi.hoisted(() => ({ requireAdmin: vi.fn(), getStatusLabels: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireAdmin: h.requireAdmin }));
+vi.mock("@/lib/db/status-labels", () => ({ getStatusLabels: h.getStatusLabels }));
 vi.mock("next/navigation", () => ({ redirect: () => undefined, notFound: () => undefined }));
 
 import { GET } from "@/app/admin/export/route";
 import { toCsv } from "@/lib/csv";
+import { DEFAULT_STATUS_LABELS } from "@/lib/status-labels";
 
 const base = {
   id: "abcdef12-3456-4890-8bcd-ef1234567890", full_name: "Ali", cpr: "990101123", phone: "33334444", email: "a@x.com",
@@ -15,7 +17,10 @@ const base = {
 };
 import { pagedSupabase } from "../helpers/paged-supabase";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.getStatusLabels.mockResolvedValue(DEFAULT_STATUS_LABELS);
+});
 
 function asAdmin(rows: unknown[]) {
   h.requireAdmin.mockResolvedValue({
@@ -41,6 +46,13 @@ describe("CSV formula injection", () => {
     expect(body).toContain(`"'+cmd|' /C calc'!A0"`);
     expect(body).toContain(`"'-1234"`);
     expect(body).not.toMatch(/(^|,)"[=+\-@]/m);
+  });
+  it("a status label that looks like a formula is neutralised", async () => {
+    h.getStatusLabels.mockResolvedValue({ ...DEFAULT_STATUS_LABELS, registered: '=HYPERLINK("http://evil.example","x")' });
+    asAdmin([base]);
+    const body = await (await GET()).text();
+    expect(body).toContain(`"'=HYPERLINK(`);
+    expect(body).not.toMatch(/(^|,)"=HYPERLINK/m);
   });
   it("route only emits the two allowed screening columns", async () => {
     asAdmin([base]);

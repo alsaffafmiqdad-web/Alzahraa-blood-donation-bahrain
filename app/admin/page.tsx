@@ -12,11 +12,11 @@ import {
   type DonorRecord,
 } from "@/lib/donor-filters";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { getStatusLabels } from "@/lib/db/status-labels";
 import { formatSlot } from "@/lib/format";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AutoRefresh } from "@/components/admin/AutoRefresh";
 import { DonorTable } from "@/components/admin/DonorTable";
-import { STATUS_LABELS } from "@/components/admin/StatusControl";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,7 @@ export default async function DashboardPage({
   const { supabase, displayName } = await requireAdmin();
   const sp = await searchParams;
   const filters = parseFilters(sp);
+  const labels = await getStatusLabels(supabase);
 
   const [donorsRes, slotsRes] = await Promise.all([
     fetchAllRows<DonorRecord>((from, to) =>
@@ -73,8 +74,8 @@ export default async function DashboardPage({
       )}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Total donors" value={stats.total} />
-        <Stat label="Donated" value={stats.byStatus.donated} />
-        <Stat label="In progress" value={inProgress} hint="Verified, waiting or in screening" />
+        <Stat label={labels.donated} value={stats.byStatus.donated} />
+        <Stat label="In progress" value={inProgress} hint={`${labels.verified}, ${labels.waiting} or ${labels.screening}`} />
         <Stat label="Flagged" value={stats.flagged} />
         {stats.emailsPending > 0 && <Stat label="Emails pending" value={stats.emailsPending} />}
       </div>
@@ -105,7 +106,7 @@ export default async function DashboardPage({
             <option value="all">All</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABELS[s]}
+                {labels[s]}
               </option>
             ))}
           </select>
@@ -154,7 +155,7 @@ export default async function DashboardPage({
       <p className="mb-2 text-sm text-ink-soft">
         Showing {rows.length} of {stats.total}
       </p>
-      <DonorTable rows={rows} totalCount={stats.total} />
+      <DonorTable rows={rows} totalCount={stats.total} labels={labels} />
     </AdminShell>
   );
 }

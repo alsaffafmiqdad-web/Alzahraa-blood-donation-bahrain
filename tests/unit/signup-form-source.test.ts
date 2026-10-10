@@ -63,6 +63,23 @@ describe("draft photo cap and quota", () => {
   });
 });
 
+describe("floating WhatsApp button", () => {
+  it("sits in the sticky bottom bar, hidden while the keyboard is open", () => {
+    const bar = form.slice(form.indexOf('className="sticky bottom-0 z-30'));
+    const before = bar.slice(0, bar.indexOf("<div className=\"mx-auto flex max-w-xl"));
+    expect(before).toContain("<WhatsAppButton");
+    expect(before).toMatch(/whatsappUrl && !kb && \(/);
+    expect(before).toContain("absolute bottom-full end-4 mb-3 z-30");
+  });
+  it("gives the page room for the button only when it is shown", () => {
+    expect(form).toMatch(/whatsappUrl \? "pb-24" : "pb-8"/);
+  });
+  it("takes the URL as a prop and the label from the dictionary", () => {
+    expect(form).toContain("whatsappUrl: string | null;");
+    expect(form).toContain("dict.common.whatsapp_label");
+  });
+});
+
 describe("length errors read the live input value", () => {
   it("CPR and phone onBlur use the event value, not the render closure", () => {
     expect(form).toContain('markLength("cpr", cprInput(e.currentTarget.value)');

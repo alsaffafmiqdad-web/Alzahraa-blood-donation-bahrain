@@ -9,6 +9,8 @@ import {
   signupSchema,
   queueStartSchema,
   signupWalkInSchema,
+  statusLabelsSchema,
+  themeSchema,
 } from "@/lib/validation";
 
 const good = {
@@ -158,6 +160,7 @@ describe("other schemas", () => {
       event_date: "2026-10-16",
       event_start_time: "08:30",
       public_registration_open: "on",
+      whatsapp_number: "",
     };
     expect(eventSchema.safeParse(ok).success).toBe(true);
     expect(eventSchema.safeParse({ ...ok, event_start_time: "8:30" }).success).toBe(false);
@@ -171,6 +174,115 @@ describe("other schemas", () => {
     expect(passwordSchema.safeParse({ password: "short", confirm: "short" }).success).toBe(false);
     expect(passwordSchema.safeParse({ password: "a-long-enough-pw", confirm: "different-long-pw" }).success).toBe(false);
     expect(passwordSchema.safeParse({ password: "a-long-enough-pw", confirm: "a-long-enough-pw" }).success).toBe(true);
+  });
+});
+
+describe("eventSchema whatsapp_number", () => {
+  const base = {
+    name_ar: "a",
+    name_en: "b",
+    location_ar: "",
+    location_en: "",
+    event_date: "2026-10-16",
+    event_start_time: "08:30",
+    public_registration_open: "on",
+  };
+  const wa = (v: string) => eventSchema.safeParse({ ...base, whatsapp_number: v });
+  it.each([
+    ["", ""],
+    ["97333334444", "97333334444"],
+    ["+973 3333 4444", "97333334444"],
+    ["0097333334444", "97333334444"],
+    ["33334444", "97333334444"],
+    ["٩٧٣٣٣٣٣٤٤٤٤", "97333334444"],
+    ["  97333334444  ", "97333334444"],
+  ])("normalises %j", (input, out) => {
+    const r = wa(input);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.whatsapp_number).toBe(out);
+  });
+  it.each(["letters", "123", "1".repeat(16), "9".repeat(31)])("rejects %j with the digits message", (input) => {
+    const r = wa(input);
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]!.path).toEqual(["whatsapp_number"]);
+      expect(r.error.issues[0]!.message).toBe(
+        "Enter a WhatsApp number with 8 to 15 digits, for example 97333334444, or leave it empty",
+      );
+    }
+  });
+});
+
+describe("themeSchema", () => {
+  it("accepts and lowercases uppercase hex", () => {
+    const r = themeSchema.safeParse({ theme_accent: "#093F4C", theme_background: "#FBF7F2" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual({ theme_accent: "#093f4c", theme_background: "#fbf7f2" });
+  });
+  it.each(["red", "#fff", ""])("rejects %j as a colour", (bad) => {
+    const r = themeSchema.safeParse({ theme_accent: bad, theme_background: "#fbf7f2" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]!.message).toBe("Accent colour must be a colour like #093f4c");
+  });
+  it("rejects an accent that is too light for white text", () => {
+    const r = themeSchema.safeParse({ theme_accent: "#ffff00", theme_background: "#fbf7f2" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]!.path).toEqual(["theme_accent"]);
+      expect(r.error.issues[0]!.message).toBe("The accent colour is too light for white button text");
+    }
+  });
+  it("rejects a background that is too dark for the text", () => {
+    const r = themeSchema.safeParse({ theme_accent: "#093f4c", theme_background: "#222222" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]!.path).toEqual(["theme_background"]);
+      expect(r.error.issues[0]!.message).toBe("The background is too dark for the text");
+    }
+  });
+});
+
+describe("statusLabelsSchema", () => {
+  const keys = ["registered", "verified", "waiting", "screening", "donated", "deferred", "no_show"];
+  const input = (over: Record<string, string> = {}) => ({
+    ...Object.fromEntries(keys.map((k) => [`label_${k}`, `Name ${k}`])),
+    ...over,
+  });
+  const msg = (over: Record<string, string>, field: string) => {
+    const r = statusLabelsSchema.safeParse(input(over));
+    expect(r.success).toBe(false);
+    return r.success ? "" : r.error.issues.find((i) => i.path[0] === field)?.message;
+  };
+  it("trims, accepts valid input and returns un-prefixed keys", () => {
+    const r = statusLabelsSchema.safeParse(input({ label_waiting: "  Desk A  " }));
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(Object.keys(r.data).sort()).toEqual([...keys].sort());
+      expect(r.data.waiting).toBe("Desk A");
+      expect(r.data.no_show).toBe("Name no_show");
+    }
+  });
+  it("rejects an empty name", () => {
+    expect(msg({ label_waiting: "   " }, "label_waiting")).toBe("Enter a name");
+  });
+  it("rejects more than 40 characters", () => {
+    expect(msg({ label_waiting: "x".repeat(41) }, "label_waiting")).toBe("Use 40 characters or fewer");
+  });
+  it("rejects an en dash and an em dash", () => {
+    expect(msg({ label_waiting: `A${String.fromCharCode(0x2013)}B` }, "label_waiting")).toBe("Don't use long dashes");
+    expect(msg({ label_donated: `A${String.fromCharCode(0x2014)}B` }, "label_donated")).toBe("Don't use long dashes");
+  });
+  it("rejects a case-insensitive duplicate, with the error on the later field", () => {
+    expect(msg({ label_registered: "Desk", label_donated: "desk" }, "label_donated")).toBe("Each status needs a different name");
+    const r = statusLabelsSchema.safeParse(input({ label_registered: "Desk", label_donated: "desk" }));
+    if (!r.success) expect(r.error.issues.some((i) => i.path[0] === "label_registered")).toBe(false);
+  });
+  it("rejects a missing key", () => {
+    const { label_deferred, ...rest } = input();
+    void label_deferred;
+    const r = statusLabelsSchema.safeParse(rest);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]!.path).toEqual(["label_deferred"]);
   });
 });
 

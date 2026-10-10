@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { reportAlert } from "@/lib/alert";
-import { getEvent, getSlotAvailability, type EventRow, type SlotAvailability } from "@/lib/db/public";
+import { getEvent, getSiteSettings, getSlotAvailability, type EventRow, type SlotAvailability } from "@/lib/db/public";
+import { whatsAppUrl } from "@/lib/whatsapp";
 import { isWalkInMode } from "@/lib/event-mode";
 import { formatDate, formatSlot } from "@/lib/format";
 import { getDictionary, isLocale, t } from "@/lib/i18n";
@@ -14,6 +15,7 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const dict = getDictionary(locale);
+  const whatsappUrl = whatsAppUrl((await getSiteSettings()).whatsappNumber);
 
   let event: EventRow;
   let slots: SlotAvailability[];
@@ -24,7 +26,7 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
     console.error(`join page load failed: ${message}`);
     reportAlert({ event: "join_load_failed", detail: message });
     return (
-      <PageShell locale={locale} dict={dict}>
+      <PageShell locale={locale} dict={dict} whatsappUrl={whatsappUrl}>
         <div className="rounded-2xl border border-line bg-white p-5 text-ink">{dict.join.unavailable}</div>
       </PageShell>
     );
@@ -39,7 +41,7 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
 
   if (!event.public_registration_open) {
     return (
-      <PageShell locale={locale} dict={dict}>
+      <PageShell locale={locale} dict={dict} whatsappUrl={whatsappUrl}>
         <EventIntro dict={dict} event={summary} walkIn={walkIn} closed />
       </PageShell>
     );
@@ -54,6 +56,7 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
       eventDate={event.event_date}
       slotHint={t(dict.join.slot_hint, { date: dateText })}
       event={summary}
+      whatsappUrl={whatsappUrl}
     />
   );
 }

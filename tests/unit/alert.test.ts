@@ -5,6 +5,7 @@ vi.mock("next/server", () => ({ after }));
 
 const URL_OK = "https://discord.com/api/webhooks/1/abc";
 let reportAlert: typeof import("@/lib/alert").reportAlert;
+let reportSubmission: typeof import("@/lib/alert").reportSubmission;
 const fetchMock = vi.fn();
 
 beforeEach(async () => {
@@ -14,7 +15,7 @@ beforeEach(async () => {
   fetchMock.mockResolvedValue({ ok: true });
   vi.stubGlobal("fetch", fetchMock);
   delete process.env.DISCORD_WEBHOOK_URL;
-  ({ reportAlert } = await import("@/lib/alert"));
+  ({ reportAlert, reportSubmission } = await import("@/lib/alert"));
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -56,6 +57,46 @@ describe("reportAlert", () => {
     process.env.DISCORD_WEBHOOK_URL = URL_OK;
     reportAlert({ event: "signup_error", code: "server" });
     reportAlert({ event: "signup_error", code: "server" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("reportSubmission", () => {
+  it("does nothing without a webhook or with a non-Discord url", () => {
+    reportSubmission({ outcome: "success" });
+    process.env.DISCORD_WEBHOOK_URL = "https://example.com/api/webhooks/1";
+    reportSubmission({ outcome: "success" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("posts twice for two identical notices (no dedup)", () => {
+    process.env.DISCORD_WEBHOOK_URL = URL_OK;
+    reportSubmission({ outcome: "success", mode: "slot" });
+    reportSubmission({ outcome: "success", mode: "slot" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).content).toContain("signup ok");
+  });
+  it("stops after 25 in a minute and counts the rest as suppressed", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-16T06:00:00Z"));
+      process.env.DISCORD_WEBHOOK_URL = URL_OK;
+      for (let i = 0; i < 30; i++) reportSubmission({ outcome: "server" });
+      expect(fetchMock).toHaveBeenCalledTimes(25);
+      vi.setSystemTime(new Date("2026-10-16T06:01:01Z"));
+      reportSubmission({ outcome: "server" });
+      expect(fetchMock).toHaveBeenCalledTimes(26);
+      expect(JSON.parse(fetchMock.mock.calls[25]![1].body).content).toContain("suppressed since last: 5");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("does not throw when fetch rejects or when after() throws", () => {
+    process.env.DISCORD_WEBHOOK_URL = URL_OK;
+    fetchMock.mockRejectedValue(new Error("net"));
+    after.mockImplementation(() => {
+      throw new Error("outside request scope");
+    });
+    expect(() => reportSubmission({ outcome: "server" })).not.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

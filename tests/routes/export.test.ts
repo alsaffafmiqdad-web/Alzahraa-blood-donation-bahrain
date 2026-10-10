@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
+const h = vi.hoisted(() => ({ requireAdmin: vi.fn(), getStatusLabels: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireAdmin: h.requireAdmin }));
+vi.mock("@/lib/db/status-labels", () => ({ getStatusLabels: h.getStatusLabels }));
 vi.mock("next/navigation", () => ({ redirect: () => undefined, notFound: () => undefined }));
 
 import { GET } from "@/app/admin/export/route";
+import { DEFAULT_STATUS_LABELS } from "@/lib/status-labels";
 import { pagedSupabase } from "../helpers/paged-supabase";
 
 const donor = {
@@ -29,7 +31,42 @@ const donor = {
   slots: { starts_at: "09:30:00" },
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.getStatusLabels.mockResolvedValue(DEFAULT_STATUS_LABELS);
+});
+
+/**
+ * The Status cell of the one data row: the cell right after "Slot" (09:30) and before the queue number.
+ * Other cells of the fixture hold no commas, so a plain split on the quoted cell boundaries is enough.
+ */
+async function statusCell(status: string): Promise<string> {
+  h.requireAdmin.mockResolvedValue({
+    supabase: pagedSupabase([{ ...donor, status }]).supabase,
+    userId: "u",
+    displayName: "A",
+  });
+  const body = await (await GET()).text();
+  const m = /"09:30",("[^"]*"|[^,]*),/.exec(body);
+  return (m?.[1] ?? "").replace(/^"|"$/g, "");
+}
+
+describe("CSV Status column uses the admin labels", () => {
+  it("writes the label, never the raw key", async () => {
+    expect(await statusCell("waiting")).toBe("Registration Station");
+  });
+  it("uses a custom label returned by the loader", async () => {
+    h.getStatusLabels.mockResolvedValue({ ...DEFAULT_STATUS_LABELS, waiting: "Desk A" });
+    expect(await statusCell("waiting")).toBe("Desk A");
+  });
+  it("falls back to the default when the loader result lacks a label", async () => {
+    h.getStatusLabels.mockResolvedValue({ ...DEFAULT_STATUS_LABELS, no_show: undefined });
+    expect(await statusCell("no_show")).toBe("No show (after half time)");
+  });
+  it("keeps the raw key only for an unknown status", async () => {
+    expect(await statusCell("mystery")).toBe("mystery");
+  });
+});
 
 describe("GET /admin/export", () => {
   it("returns 401 JSON for a non-admin", async () => {

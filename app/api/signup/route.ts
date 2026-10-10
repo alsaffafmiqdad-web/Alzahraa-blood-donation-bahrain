@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
-import { reportAlert } from "@/lib/alert";
+import { reportAlert, reportSubmission } from "@/lib/alert";
+import type { SubmissionNotice } from "@/lib/alert-format";
 import { createCardToken } from "@/lib/card-link";
 import { MAX_SIGNUP_BODY_BYTES } from "@/lib/config";
 import {
@@ -31,11 +32,22 @@ function json(body: Record<string, unknown>, status: number, headers?: Record<st
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
+/** One Discord notice per request, whatever the outcome. `handle` sets `n` right before each return. */
 export async function POST(req: Request) {
+  const n: SubmissionNotice = { outcome: "server" };
+  try {
+    return await handle(req, n);
+  } finally {
+    reportSubmission(n);
+  }
+}
+
+async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
   try {
     const ip = clientIp(req);
     if (!(await checkSignupRateLimit(ip))) {
       reportAlert({ event: "signup_rate_limited" });
+      n.outcome = "rate_limited";
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
 
@@ -47,30 +59,41 @@ export async function POST(req: Request) {
     if (contentType.startsWith("application/json")) {
       const text = await req.text();
       if (text.length > MAX_SIGNUP_BODY_BYTES || Buffer.byteLength(text) > MAX_SIGNUP_BODY_BYTES) {
+        n.outcome = "too_large";
         return json({ ok: false, error: "too_large" }, 413);
       }
       try {
         raw = JSON.parse(text);
       } catch {
+        n.outcome = "bad_json";
         return json({ ok: false, error: "bad_json" }, 400);
       }
     } else if (contentType.startsWith("multipart/form-data")) {
       const length = Number(req.headers.get("content-length"));
       if (!req.headers.get("content-length") || !Number.isFinite(length) || length > MULTIPART_SIGNUP_MAX_BYTES) {
+        n.outcome = "too_large";
         return json({ ok: false, error: "too_large" }, 413);
       }
       let form: FormData;
       try {
         form = await req.formData();
       } catch {
+        n.outcome = "bad_json";
         return json({ ok: false, error: "bad_json" }, 400);
       }
       const payload = form.get("payload");
-      if (typeof payload !== "string") return json({ ok: false, error: "bad_json" }, 400);
-      if (Buffer.byteLength(payload) > MAX_SIGNUP_BODY_BYTES) return json({ ok: false, error: "too_large" }, 413);
+      if (typeof payload !== "string") {
+        n.outcome = "bad_json";
+        return json({ ok: false, error: "bad_json" }, 400);
+      }
+      if (Buffer.byteLength(payload) > MAX_SIGNUP_BODY_BYTES) {
+        n.outcome = "too_large";
+        return json({ ok: false, error: "too_large" }, 413);
+      }
       try {
         raw = JSON.parse(payload);
       } catch {
+        n.outcome = "bad_json";
         return json({ ok: false, error: "bad_json" }, 400);
       }
       const file = form.get("cprImage");
@@ -87,10 +110,12 @@ export async function POST(req: Request) {
         }
       }
     } else {
+      n.outcome = "unsupported_media_type";
       return json({ ok: false, error: "unsupported_media_type" }, 415);
     }
     const event = await getEvent();
     const walkIn = isWalkInMode(event, new Date());
+    n.mode = walkIn ? "walk_in" : "slot";
     // Owner decisions B and W4: the photo is required in slot mode and optional in walk-in mode.
     if (!image && !imageError && !walkIn) imageError = "cpr_image_required";
     const parsed = (walkIn ? signupWalkInSchema : signupSchema).safeParse(raw);
@@ -103,17 +128,21 @@ export async function POST(req: Request) {
         }
       }
       if (imageError) fields.cprImage = imageError;
+      n.outcome = "validation";
+      n.fields = fields;
       return json({ ok: false, error: "validation", fields }, 400);
     }
     const input = parsed.data;
 
     if (!(await verifyTurnstile(input.token, ip))) {
+      n.outcome = "turnstile";
       return json({ ok: false, error: "turnstile" }, 403);
     }
 
     // Count the attempt only now: typos (Zod) and failed Turnstile checks never burn the quota.
     if (!(await recordSignupAttempt(ip))) {
       reportAlert({ event: "signup_rate_limited" });
+      n.outcome = "rate_limited";
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
 
@@ -135,6 +164,9 @@ export async function POST(req: Request) {
         reportAlert({ event: "card_token_failed", donorId: id, detail: message });
       }
       const ref = shortRef(id);
+      n.outcome = "success";
+      n.donorId = id;
+      if (isWalkIn) n.queueNumber = queueNumber;
       if (isWalkIn) {
         return json({ ok: true, ref, walkIn: true, queueNumber, emailStatus, ...(card ? { card } : {}) }, 200);
       }
@@ -150,12 +182,15 @@ export async function POST(req: Request) {
       console.info(`signup replay donor=${prior.id}`);
       // Not sent yet usually means the first request's after() send is still running.
       const emailStatus = !prior.email ? "none" : prior.emailSent ? "sent" : "sending";
-      return success(prior.id, prior.slotId === null, prior.slotId, prior.queueNumber, emailStatus);
+      const res = success(prior.id, prior.slotId === null, prior.slotId, prior.queueNumber, emailStatus);
+      n.outcome = "replay";
+      return res;
     };
     const early = await replay();
     if (early) return early;
 
     if (!event.public_registration_open) {
+      n.outcome = "registration_closed";
       return json({ ok: false, error: "registration_closed" }, 403);
     }
 
@@ -185,6 +220,7 @@ export async function POST(req: Request) {
         const late = await replay();
         if (late) return late;
       }
+      n.outcome = result.reason;
       if (result.reason === "registration_closed") return json({ ok: false, error: result.reason }, 403);
       return json({ ok: false, error: result.reason }, 409);
     }
@@ -209,6 +245,7 @@ export async function POST(req: Request) {
     const message = e instanceof Error ? e.message : "unknown";
     console.error(`signup error: ${message}`);
     reportAlert({ event: "signup_error", code: "server", detail: message });
+    n.outcome = "server";
     return json({ ok: false, error: "server" }, 500);
   }
 }

@@ -27,6 +27,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/db/status-labels", () => ({ getStatusLabels: async () => ({}) }));
 vi.mock("@/lib/db/admins", () => ({ createAdmin: h.createAdmin }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: h.sendDonorEmail }));
 vi.mock("@/lib/supabase/server", () => ({
@@ -87,6 +88,10 @@ const guarded: Record<string, () => Promise<unknown>> = {
   resendEmail: () => actions.resendEmail(ID),
   updateEvent: () => actions.updateEvent(prev, fd({ nameAr: "a", nameEn: "b" })),
   updateQueueStart: () => actions.updateQueueStart(prev, fd({ queue_start: "250" })),
+  updateStatusLabels: () => actions.updateStatusLabels(prev, fd({ label_waiting: "Desk" })),
+  updateTheme: () => actions.updateTheme(prev, fd({ theme_accent: "#093f4c", theme_background: "#fbf7f2" })),
+  updateOgImage: () => actions.updateOgImage(prev, new FormData()),
+  removeOgImage: () => actions.removeOgImage(),
   createSlot: () => actions.createSlot(prev, fd({ time: "14:00", capacity: "10" })),
   updateSlot: () => actions.updateSlot({ slotId: 1, capacity: 5, active: true }),
   deleteSlot: () => actions.deleteSlot(1),

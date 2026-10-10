@@ -1,5 +1,8 @@
 import "server-only";
+import { cache } from "react";
+import { SITE_ASSETS_BUCKET } from "@/lib/site-assets";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_THEME } from "@/lib/theme";
 
 export type EventRow = {
   name_ar: string;
@@ -19,6 +22,42 @@ export async function getEvent(): Promise<EventRow> {
   if (error || !data) throw new Error(`getEvent failed: ${error?.message ?? "no row"}`);
   return data as EventRow;
 }
+
+export type SiteSettings = { accent: string; background: string; ogImageUrl: string | null; whatsappNumber: string };
+
+const DEFAULT_SETTINGS: SiteSettings = { ...DEFAULT_THEME, ogImageUrl: null, whatsappNumber: "" };
+
+/** Theme colours, link preview image and WhatsApp number from the event row. Cached per request. Never throws. */
+export const getSiteSettings: () => Promise<SiteSettings> = cache(async () => {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("event")
+      .select("theme_accent, theme_background, og_image_path, whatsapp_number")
+      .single();
+    if (error || !data) {
+      console.error(`site settings load failed: ${error?.message ?? "no row"}`);
+      return DEFAULT_SETTINGS;
+    }
+    const r = data as {
+      theme_accent: string;
+      theme_background: string;
+      og_image_path: string | null;
+      whatsapp_number: string;
+    };
+    return {
+      accent: r.theme_accent,
+      background: r.theme_background,
+      ogImageUrl: r.og_image_path
+        ? supabase.storage.from(SITE_ASSETS_BUCKET).getPublicUrl(r.og_image_path).data.publicUrl
+        : null,
+      whatsappNumber: r.whatsapp_number ?? "",
+    };
+  } catch (e) {
+    console.error(`site settings load failed: ${e instanceof Error ? e.message : "unknown"}`);
+    return DEFAULT_SETTINGS;
+  }
+});
 
 export type SlotAvailability = { id: number; startsAt: string; capacity: number; booked: number };
 

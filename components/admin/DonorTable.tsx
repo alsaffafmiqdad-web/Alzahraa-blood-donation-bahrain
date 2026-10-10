@@ -9,6 +9,7 @@ import { checkInNotice, showCheckInNotice } from "@/lib/check-in-notice";
 import type { DonorListRow } from "@/lib/donor-filters";
 import { formatSlot } from "@/lib/format";
 import { en } from "@/lib/i18n/dictionaries/en";
+import type { StatusLabels } from "@/lib/status-labels";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusControl } from "@/components/admin/StatusControl";
@@ -20,7 +21,7 @@ function flagText(reasons: string[]): string {
   return reasons.map((r) => labels[r] ?? r).join("; ");
 }
 
-function CheckInButton({ row }: { row: DonorListRow }) {
+function CheckInButton({ row, labels }: { row: DonorListRow; labels: StatusLabels }) {
   const [pending, start] = useTransition();
   return (
     <Button
@@ -31,7 +32,7 @@ function CheckInButton({ row }: { row: DonorListRow }) {
       onClick={() =>
         start(async () => {
           const res = await checkInDonor(row.id);
-          showCheckInNotice(toast, checkInNotice(row.fullName, res));
+          showCheckInNotice(toast, checkInNotice(row.fullName, res, labels));
         })
       }
     >
@@ -40,7 +41,15 @@ function CheckInButton({ row }: { row: DonorListRow }) {
   );
 }
 
-export function DonorTable({ rows, totalCount }: { rows: DonorListRow[]; totalCount: number }) {
+export function DonorTable({
+  rows,
+  totalCount,
+  labels,
+}: {
+  rows: DonorListRow[];
+  totalCount: number;
+  labels: StatusLabels;
+}) {
   if (rows.length === 0) {
     return (
       <p className="rounded-lg border border-line bg-white p-6 text-center text-ink-soft">
@@ -95,12 +104,12 @@ export function DonorTable({ rows, totalCount }: { rows: DonorListRow[]; totalCo
               </TableCell>
               <TableCell className="text-sm">{r.email ? (r.emailSent ? "Sent" : "Pending") : "None"}</TableCell>
               <TableCell>
-                <StatusControl donorId={r.id} name={r.fullName} status={r.status} />
+                <StatusControl donorId={r.id} name={r.fullName} status={r.status} labels={labels} />
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
                   {(r.status === "registered" || r.status === "verified" || r.status === "no_show") && (
-                    <CheckInButton row={r} />
+                    <CheckInButton row={r} labels={labels} />
                   )}
                   <Button asChild size="sm" variant="outline">
                     <a

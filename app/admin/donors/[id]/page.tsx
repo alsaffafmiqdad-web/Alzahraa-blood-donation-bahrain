@@ -8,7 +8,7 @@ import { ageOn } from "@/lib/screening";
 import { donorIdSchema } from "@/lib/validation";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { DonorActions } from "@/components/admin/DonorActions";
-import { STATUS_LABELS } from "@/components/admin/StatusControl";
+import { getStatusLabels } from "@/lib/db/status-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,7 @@ export default async function DonorDetailPage({
   const sp = await searchParams;
   const { supabase, displayName } = await requireAdmin();
   if (!donorIdSchema.safeParse(id).success) notFound();
+  const labels = await getStatusLabels(supabase);
 
   const { data } = await supabase.from("donors").select("*").eq("id", id).maybeSingle();
   if (!data) notFound();
@@ -105,7 +106,7 @@ export default async function DonorDetailPage({
     ["Email", d.email ?? "-"],
     ["Blood type", d.blood_type === "unknown" ? "Unknown" : d.blood_type],
     ["Source", SOURCE_LABEL[d.source]],
-    ["Status", STATUS_LABELS[d.status]],
+    ["Status", labels[d.status]],
     ["Queue #", d.queue_number !== null ? `#${d.queue_number}` : "-"],
     ["Slot", slotTime ? formatSlot(slotTime, "en") : "-"],
     ["Registered on", formatDateTime(d.created_at)],
@@ -140,6 +141,7 @@ export default async function DonorDetailPage({
           status={d.status}
           hasEmail={!!d.email}
           emailSent={d.email_sent}
+          labels={labels}
         />
       </div>
 
@@ -202,8 +204,8 @@ export default async function DonorDetailPage({
                 {h.kind === "edit"
                   ? "(details edited)"
                   : h.kind === "created"
-                    ? `Created as ${STATUS_LABELS[h.to_status]}`
-                    : STATUS_LABELS[h.to_status]}{" "}
+                    ? `Created as ${labels[h.to_status]}`
+                    : labels[h.to_status]}{" "}
                 by {h.changed_by_name} <span className="text-ink-soft">{formatDateTime(h.changed_at)}</span>
               </li>
             ))}

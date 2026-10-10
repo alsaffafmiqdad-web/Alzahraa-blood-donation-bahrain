@@ -8,8 +8,11 @@ import { requireAdmin } from "@/lib/auth";
 import { checkInNotice } from "@/lib/check-in-notice";
 import { parseFilters, urlSafeSearch, type Status } from "@/lib/donor-filters";
 import { sendDonorEmail, type EmailOutcome } from "@/lib/email/dispatch";
-import { CPR_IMAGE_BUCKET, cprImagePath } from "@/lib/cpr-image";
+import { CPR_IMAGE_BUCKET, CPR_IMAGE_MIME, cprImagePath, sniffImageType } from "@/lib/cpr-image";
 import { createAdmin } from "@/lib/db/admins";
+import { getStatusLabels } from "@/lib/db/status-labels";
+import { OG_IMAGE_MAX_BYTES, SITE_ASSETS_BUCKET, ogImagePath } from "@/lib/site-assets";
+import { STATUSES } from "@/lib/config";
 import { formatDateShort } from "@/lib/format";
 import { en } from "@/lib/i18n/dictionaries/en";
 import { checkLoginRateLimit, ipFromHeaders, recordLoginFailure } from "@/lib/rate-limit";
@@ -27,6 +30,8 @@ import {
   passwordSchema,
   setStatusSchema,
   slotIdSchema,
+  statusLabelsSchema,
+  themeSchema,
   updateSlotSchema,
 } from "@/lib/validation";
 import type { CheckInResult, FormState, SimpleResult } from "@/app/admin/action-types";
@@ -281,7 +286,7 @@ export async function setDonorStatus(input: { donorId: string; status: Status })
   if (status === "waiting") {
     const res = await checkInDonor(donorId);
     if (!res.ok) return res;
-    const notice = checkInNotice("This donor", res);
+    const notice = checkInNotice("This donor", res, await getStatusLabels(supabase));
     return notice.kind === "error" ? { ok: false, error: notice.text } : { ok: true };
   }
   const { data, error } = await supabase.from("donors").update({ status }).eq("id", donorId).select("id");
@@ -372,6 +377,92 @@ export async function updateQueueStart(_prev: FormState, formData: FormData): Pr
   }
   revalidatePath("/admin/event");
   return { ok: true, message: "Queue start saved" };
+}
+
+export async function updateStatusLabels(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { supabase } = await requireAdmin();
+  const parsed = statusLabelsSchema.safeParse(formToObject(formData));
+  if (!parsed.success) return { ok: false, ...issueMessages(parsed.error) };
+  const labels = parsed.data;
+  const results = await Promise.all(
+    STATUSES.map((s) => supabase.from("status_labels").update({ label: labels[s] }).eq("status", s)),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) {
+    console.error(`updateStatusLabels failed: ${failed.error.message}`);
+    return {
+      ok: false,
+      error: pgCode(failed.error) === "23505" ? "Each status needs a different name" : "Could not save the status names",
+    };
+  }
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "Status names saved" };
+}
+
+/* ---------------- theme, link preview image ---------------- */
+
+function revalidateSite() {
+  revalidatePath("/admin/event");
+  revalidatePath("/", "layout");
+}
+
+export async function updateTheme(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { supabase } = await requireAdmin();
+  const parsed = themeSchema.safeParse(formToObject(formData));
+  if (!parsed.success) return { ok: false, ...issueMessages(parsed.error) };
+  const { error } = await supabase.from("event").update(parsed.data).eq("id", true);
+  if (error) {
+    console.error(`updateTheme failed: ${error.message}`);
+    return { ok: false, error: "Could not save the colours" };
+  }
+  revalidateSite();
+  return { ok: true, message: "Colours saved" };
+}
+
+export async function updateOgImage(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { supabase } = await requireAdmin();
+  const file = formData.get("og_image");
+  if (typeof file === "string" || file === null || file.size === 0) {
+    return { ok: false, error: "Choose a JPG or PNG image" };
+  }
+  if (file.size > OG_IMAGE_MAX_BYTES) return { ok: false, error: "The image must be 900 KB or smaller" };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const ext = sniffImageType(bytes);
+  if (ext !== "jpg" && ext !== "png") return { ok: false, error: "Choose a JPG or PNG image" };
+
+  const { data: current } = await supabase.from("event").select("og_image_path").eq("id", true).maybeSingle();
+  const oldPath = (current as { og_image_path: string | null } | null)?.og_image_path ?? null;
+
+  const path = ogImagePath(ext);
+  const bucket = supabase.storage.from(SITE_ASSETS_BUCKET);
+  const upload = await bucket.upload(path, bytes, { contentType: CPR_IMAGE_MIME[ext], upsert: false, cacheControl: "31536000" });
+  if (upload.error) {
+    console.error(`updateOgImage upload failed: ${upload.error.message}`);
+    return { ok: false, error: "Could not save the image" };
+  }
+  const { error } = await supabase.from("event").update({ og_image_path: path }).eq("id", true);
+  if (error) {
+    console.error(`updateOgImage failed: ${error.message}`);
+    await bucket.remove([path]);
+    return { ok: false, error: "Could not save the image" };
+  }
+  if (oldPath && oldPath !== path) await bucket.remove([oldPath]).catch(() => undefined);
+  revalidateSite();
+  return { ok: true, message: "Link preview image saved" };
+}
+
+export async function removeOgImage(): Promise<SimpleResult> {
+  const { supabase } = await requireAdmin();
+  const { data: current } = await supabase.from("event").select("og_image_path").eq("id", true).maybeSingle();
+  const oldPath = (current as { og_image_path: string | null } | null)?.og_image_path ?? null;
+  const { error } = await supabase.from("event").update({ og_image_path: null }).eq("id", true);
+  if (error) {
+    console.error(`removeOgImage failed: ${error.message}`);
+    return { ok: false, error: "Could not remove the image" };
+  }
+  if (oldPath) await supabase.storage.from(SITE_ASSETS_BUCKET).remove([oldPath]).catch(() => undefined);
+  revalidateSite();
+  return { ok: true };
 }
 
 /* ---------------- slots ---------------- */

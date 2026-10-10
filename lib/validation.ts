@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { BLOOD_TYPES, STATUSES } from "@/lib/config";
 import { normaliseDigits, toAsciiDigits } from "@/lib/cpr";
+import type { Status } from "@/lib/donor-filters";
+import { LONG_DASH_RE, STATUS_LABEL_MAX, type StatusLabels } from "@/lib/status-labels";
+import { isUsableAccent, isUsableBackground, normalizeHex } from "@/lib/theme";
+import { normalizeWhatsAppNumber } from "@/lib/whatsapp";
 
 /* Isomorphic: no server imports. Issue messages are `errors.*` dictionary keys. */
 
@@ -195,6 +199,8 @@ const timeField = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: "Enter a time as HH:MM" });
 
+const WHATSAPP_MSG = "Enter a WhatsApp number with 8 to 15 digits, for example 97333334444, or leave it empty";
+
 export const eventSchema = z.object({
   name_ar: z.string().trim().min(1).max(200),
   name_en: z.string().trim().min(1).max(200),
@@ -203,7 +209,63 @@ export const eventSchema = z.object({
   event_date: z.iso.date(),
   event_start_time: timeField,
   public_registration_open: checkbox,
+  whatsapp_number: z
+    .string()
+    .trim()
+    .max(30, { error: WHATSAPP_MSG })
+    .transform((v, ctx) => {
+      const n = normalizeWhatsAppNumber(v);
+      if (n === null) {
+        ctx.addIssue({ code: "custom", message: WHATSAPP_MSG });
+        return z.NEVER;
+      }
+      return n;
+    }),
 });
+
+const hex = (label: string) =>
+  z.string().transform((v, ctx) => {
+    const n = normalizeHex(v);
+    if (!n) {
+      ctx.addIssue({ code: "custom", message: `${label} must be a colour like #093f4c` });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+export const themeSchema = z
+  .object({ theme_accent: hex("Accent colour"), theme_background: hex("Background colour") })
+  .superRefine((v, ctx) => {
+    if (!isUsableAccent(v.theme_accent)) {
+      ctx.addIssue({ code: "custom", path: ["theme_accent"], message: "The accent colour is too light for white button text" });
+    }
+    if (!isUsableBackground(v.theme_background)) {
+      ctx.addIssue({ code: "custom", path: ["theme_background"], message: "The background is too dark for the text" });
+    }
+  });
+
+const statusLabelField = z
+  .string({ error: "Enter a name" })
+  .trim()
+  .superRefine((v, ctx) => {
+    if (v === "") ctx.addIssue({ code: "custom", message: "Enter a name" });
+    else if (v.length > STATUS_LABEL_MAX) ctx.addIssue({ code: "custom", message: "Use 40 characters or fewer" });
+    else if (LONG_DASH_RE.test(v)) ctx.addIssue({ code: "custom", message: "Don't use long dashes" });
+  });
+
+export const statusLabelsSchema = z
+  .object(Object.fromEntries(STATUSES.map((s) => [`label_${s}`, statusLabelField])) as Record<`label_${Status}`, typeof statusLabelField>)
+  .superRefine((v, ctx) => {
+    const seen = new Set<string>();
+    for (const s of STATUSES) {
+      const key = v[`label_${s}`].toLowerCase();
+      if (seen.has(key)) {
+        ctx.addIssue({ code: "custom", path: [`label_${s}`], message: "Each status needs a different name" });
+      }
+      seen.add(key);
+    }
+  })
+  .transform((v): StatusLabels => Object.fromEntries(STATUSES.map((s) => [s, v[`label_${s}`]])) as StatusLabels);
 
 const QUEUE_START_MSG = "Queue start must be a whole number from 1 to 99999";
 export const queueStartSchema = z.object({

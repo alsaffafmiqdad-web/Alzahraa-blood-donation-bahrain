@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { getStatusLabels } from "@/lib/db/status-labels";
+import { statusLabelFor } from "@/lib/status-labels";
 import { toCsv, type CsvCell } from "@/lib/csv";
 import { shortRef, todayInBahrain } from "@/lib/format";
 import { en } from "@/lib/i18n/dictionaries/en";
@@ -62,6 +64,7 @@ export async function GET() {
   } catch {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  const statusLabels = await getStatusLabels(supabase);
   const { data, error } = await fetchAllRows<Row>((from, to) =>
     supabase
       .from("donors")
@@ -86,7 +89,7 @@ export async function GET() {
     r.blood_type,
     r.source,
     r.slots?.starts_at.slice(0, 5) ?? "",
-    r.status,
+    statusLabelFor(statusLabels, r.status),
     r.queue_number,
     r.checked_in_at,
     yn(r.flagged),

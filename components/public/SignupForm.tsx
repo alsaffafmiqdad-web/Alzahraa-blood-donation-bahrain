@@ -47,6 +47,7 @@ import { CprImageField, type CprImageFieldHandle } from "@/components/public/Cpr
 import { EventIntro } from "@/components/public/EventIntro";
 import { TopBar } from "@/components/public/TopBar";
 import { btnPrimary, btnSecondary } from "@/components/public/button-classes";
+import { WhatsAppButton } from "@/components/public/WhatsAppButton";
 import { useStepTransition } from "@/components/public/motion";
 import { Turnstile, type TurnstileHandle } from "@/components/public/Turnstile";
 
@@ -60,6 +61,8 @@ type Props = {
   slotHint: string;
   walkIn: boolean;
   event: { name: string; dateText: string; timeText: string; location: string };
+  /** wa.me link from the admin-managed number, or null to hide the button. */
+  whatsappUrl: string | null;
 };
 
 type Values = {
@@ -143,7 +146,7 @@ const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 const desc = (...ids: (string | false | undefined)[]) => ids.filter(Boolean).join(" ") || undefined;
 
-export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, event }: Props) {
+export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, event, whatsappUrl }: Props) {
   const router = useRouter();
   const [v, setV] = useState<Values>({
     slotId: "",
@@ -799,7 +802,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
         )}
       </TopBar>
       <form ref={formRef} noValidate onSubmit={onSubmit} aria-busy={submitting} className="flex flex-1 flex-col">
-        <main ref={mainRef} id="main" className="mx-auto w-full max-w-xl flex-1 px-4 pt-6 pb-8">
+        <main ref={mainRef} id="main" className={`mx-auto w-full max-w-xl flex-1 px-4 pt-6 ${whatsappUrl ? "pb-24" : "pb-8"}`}>
       {/* A real box, not display:contents: the form's spacing only reaches its own children, and gap skips hidden steps. */}
       <fieldset disabled={!hydrated} className="flex min-w-0 flex-col gap-6">
         {!hydrated && (
@@ -1255,6 +1258,13 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
           className="sticky bottom-0 z-30 border-t border-line bg-paper/95 backdrop-blur"
           style={{ transform: kb ? `translateY(-${kb}px)` : undefined }}
         >
+          {whatsappUrl && !kb && (
+            <WhatsAppButton
+              href={whatsappUrl}
+              label={dict.common.whatsapp_label}
+              className="absolute bottom-full end-4 mb-3 z-30"
+            />
+          )}
           <div className="mx-auto flex max-w-xl items-center gap-3 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {phase === "form" && (
               <button type="button" className={btnSecondary + " basis-1/3"} onClick={back} disabled={submitting}>
