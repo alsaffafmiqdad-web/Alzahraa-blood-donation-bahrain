@@ -33,7 +33,7 @@ Queue numbers for walk-ins and desk check-ins come from one function, `next_queu
 - Every admin page and server action calls `requireAdmin()`. `proxy.ts` only redirects signed-out visitors for convenience; it is not the security boundary.
 - Signup is protected by Turnstile on every request and by a rate limit on salted, hashed IP addresses.
 - CPR card photos are in a private storage bucket. Only the server uploads them, and only admins can read or delete them, through short-lived signed URLs.
-- No personal data goes in URLs or logs. The admin search turns a typed CPR into its last 4 digits before redirecting, and logs contain only donor IDs.
+- No personal data goes in URLs or logs. A full CPR typed in the admin search is looked up on the server (the CPR is unique) and the dashboard and print list URLs carry only the donor ID (`?donor=<id>`); other searches stay in `q` as typed. Logs contain only donor IDs.
 - Admins see the full CPR in the dashboard, the donor page, the print forms and the CSV.
 - The per-donor Print menu offers the donation card (the registration form) or the donation certificate (an A4 landscape PDF rendered per request by `app/admin/donors/[id]/certificate`, background in `assets/certificate/`; nothing is stored).
 - The donor's PDF is the same A4 registration form the admins print, including the full CPR, flags and notes (owner decision). After signing up, the donor can download it for 2 hours with a signed token that is kept in `sessionStorage` and sent in a POST body, never in a URL.

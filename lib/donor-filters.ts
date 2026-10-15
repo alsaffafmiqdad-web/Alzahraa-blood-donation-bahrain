@@ -47,6 +47,8 @@ export type SortKey = "registration" | "slot" | "queue";
 
 export type DonorFilters = {
   q?: string;
+  /** Set by a full CPR search: a lowercase donor UUID, "none" (no donor has that CPR), "error" (lookup failed) or "invalid" (any other value). */
+  donor?: string;
   status?: string;
   flagged?: boolean;
   slot?: string; // slot id or "none"
@@ -78,6 +80,7 @@ export function filterDonors(rows: NumberedDonor[], f: DonorFilters): NumberedDo
         (qRef.length >= 3 && shortRef(r.id).includes(qRef));
       if (!hit) return false;
     }
+    if (f.donor && r.id !== f.donor) return false;
     if (f.status && f.status !== "all" && r.status !== f.status) return false;
     if (f.flagged && !r.flagged) return false;
     if (f.slot) {
@@ -160,16 +163,15 @@ export function toListRow(r: NumberedDonor, slots: SlotTimes): DonorListRow {
   };
 }
 
-/** Parse dashboard searchParams into filters (unknown values are ignored). */
-/**
- * A full 9 digit CPR must never go into a URL (browser history, Vercel request logs), so a search term
- * that is a CPR is reduced to its last 4 digits. The dashboard then matches those 4 digits.
- */
-export function urlSafeSearch(q: string): string {
+/** The normalised 9 digit CPR if the search term is one (any digit script, spaces/hyphens allowed), else null. */
+export function fullCprOf(q: string): string | null {
   const digits = normaliseDigits(q.trim());
-  return /^[0-9]{9}$/.test(digits) ? digits.slice(-4) : q;
+  return /^[0-9]{9}$/.test(digits) ? digits : null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Parse dashboard searchParams into filters (unknown values are ignored). */
 export function parseFilters(sp: Record<string, string | string[] | undefined>): DonorFilters {
   const one = (k: string): string | undefined => {
     const v = sp[k];
@@ -180,7 +182,16 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
   const status = one("status");
   const source = one("source");
   const slot = one("slot");
+  const donorRaw = one("donor");
+  const donor = !donorRaw
+    ? undefined
+    : UUID_RE.test(donorRaw)
+      ? donorRaw.toLowerCase()
+      : donorRaw === "none" || donorRaw === "error"
+        ? donorRaw
+        : "invalid";
   return {
+    donor,
     q: one("q")?.slice(0, 100) || undefined,
     status: status && (status === "all" || (STATUSES as readonly string[]).includes(status)) ? status : undefined,
     flagged: one("flagged") === "1" ? true : undefined,
