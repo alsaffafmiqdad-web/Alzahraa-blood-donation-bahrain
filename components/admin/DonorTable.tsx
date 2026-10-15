@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Printer } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { checkInDonor } from "@/app/admin/actions";
@@ -12,6 +11,7 @@ import { en } from "@/lib/i18n/dictionaries/en";
 import type { StatusLabels } from "@/lib/status-labels";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PrintMenu } from "@/components/admin/PrintMenu";
 import { StatusControl } from "@/components/admin/StatusControl";
 
 const SOURCE_LABEL = { self_signup: "Pre-reg", walk_in: "Walk-in", admin_added: "Staff added" } as const;
@@ -111,17 +111,12 @@ export function DonorTable({
                   {(r.status === "registered" || r.status === "verified" || r.status === "no_show") && (
                     <CheckInButton row={r} labels={labels} />
                   )}
-                  <Button asChild size="sm" variant="outline">
-                    <a
-                      href={`/admin/donors/${r.id}/print?autoprint=1`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Print form for ${r.fullName}`}
-                    >
-                      <Printer className="size-4" aria-hidden="true" />
-                      Print
-                    </a>
-                  </Button>
+                  <PrintMenu
+                    size="sm"
+                    label={`Print options for ${r.fullName}`}
+                    cardHref={`/admin/donors/${r.id}/print?autoprint=1`}
+                    certificateHref={`/admin/donors/${r.id}/certificate`}
+                  />
                 </div>
               </TableCell>
             </TableRow>

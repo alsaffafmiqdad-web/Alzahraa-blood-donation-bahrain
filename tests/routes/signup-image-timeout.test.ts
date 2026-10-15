@@ -18,6 +18,8 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: m.verifyTurnstile }));
 vi.mock("@/lib/db/public", () => ({ getEvent: m.getEvent, registerDonor: m.registerDonor }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: m.sendDonorEmail }));
+// The Discord summary has its own tests; here it would add Storage-unrelated client calls and requests.
+vi.mock("@/lib/db/signup-summary", () => ({ getSignupSummary: async () => ({}) }));
 vi.mock("@/lib/supabase/admin", async (orig) => {
   const actual = await orig<typeof import("@/lib/supabase/admin")>();
   return {

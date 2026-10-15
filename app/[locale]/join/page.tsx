@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { reportAlert } from "@/lib/alert";
+import { describeError } from "@/lib/describe-error";
 import { getEvent, getSiteSettings, getSlotAvailability, type EventRow, type SlotAvailability } from "@/lib/db/public";
 import { whatsAppUrl } from "@/lib/whatsapp";
 import { isWalkInMode } from "@/lib/event-mode";
@@ -22,9 +23,9 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
   try {
     [event, slots] = await Promise.all([getEvent(), getSlotAvailability()]);
   } catch (e) {
-    const message = e instanceof Error ? e.message : "unknown";
+    const message = describeError(e);
     console.error(`join page load failed: ${message}`);
-    reportAlert({ event: "join_load_failed", detail: message });
+    reportAlert({ event: "join_load_failed", where: "/join", detail: message });
     return (
       <PageShell locale={locale} dict={dict} whatsappUrl={whatsappUrl}>
         <div className="rounded-2xl border border-line bg-white p-5 text-ink">{dict.join.unavailable}</div>

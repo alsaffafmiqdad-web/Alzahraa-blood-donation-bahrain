@@ -106,10 +106,10 @@ function arabicTokens(text: string): Token[] {
 }
 
 /** The PDF equivalent of `dir="auto"`: Arabic text is laid out right to left, anything else as is. */
-function AutoText({ text, style }: { text: string; style?: Styles[string] }) {
+export function AutoText({ text, style, rowStyle }: { text: string; style?: Styles[string]; rowStyle?: Styles[string] }) {
   if (!ARABIC_RE.test(text)) return <Text style={style}>{text}</Text>;
   return (
-    <View style={styles.rtlRow}>
+    <View style={[styles.rtlRow, rowStyle ?? {}]}>
       {arabicTokens(text).map((tok, i) => (
         <Text key={i} style={[style ?? {}, tok.glue ? { marginLeft: 0 } : styles.tokenRtl]}>
           {tok.text}

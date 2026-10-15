@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { dailyMaintenance, ping } from "@/lib/db/maintenance";
 import { emailBudgetRemaining, listRetryCandidates } from "@/lib/db/email";
+import { describeError } from "@/lib/describe-error";
 import { CRON_SOFT_DEADLINE_MS } from "@/lib/config";
 import { emailDailyBudget } from "@/lib/env";
 import { runEmailRetry, sendDonorEmail } from "@/lib/email/dispatch";
@@ -30,9 +31,9 @@ export async function GET(req: Request) {
     await ping();
   } catch (e) {
     steps.ping = false;
-    const message = e instanceof Error ? e.message : "unknown";
+    const message = describeError(e);
     console.error(`cron ping failed: ${message}`);
-    reportAlert({ event: "cron_step_failed", code: "ping", detail: message });
+    reportAlert({ event: "cron_step_failed", code: "ping", where: "/api/cron/daily", detail: message });
   }
   try {
     await dailyMaintenance();
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
     steps.maintenance = false;
     const message = e instanceof Error ? e.message : "unknown";
     console.error(`cron maintenance failed: ${message}`);
-    reportAlert({ event: "cron_step_failed", code: "maintenance", detail: message });
+    reportAlert({ event: "cron_step_failed", code: "maintenance", where: "/api/cron/daily", detail: message });
   }
   let retry: Awaited<ReturnType<typeof runEmailRetry>> | null = null;
   try {
@@ -53,12 +54,12 @@ export async function GET(req: Request) {
     steps.retry = false;
     const message = e instanceof Error ? e.message : "unknown";
     console.error(`cron retry failed: ${message}`);
-    reportAlert({ event: "cron_step_failed", code: "retry", detail: message });
+    reportAlert({ event: "cron_step_failed", code: "retry", where: "/api/cron/daily", detail: message });
   }
-  if (retry && (retry.failed > 0 || retry.stoppedForBudget || retry.stoppedForTime)) {
+  if (retry && (retry.failed > 0 || retry.stoppedForBudget || retry.stoppedForTime || retry.stoppedForAuth)) {
     reportAlert({
       event: "cron_email_summary",
-      detail: `attempted=${retry.attempted} sent=${retry.sent} failed=${retry.failed} budget_stop=${retry.stoppedForBudget} time_stop=${retry.stoppedForTime}`,
+      detail: `attempted=${retry.attempted} sent=${retry.sent} failed=${retry.failed} budget_stop=${retry.stoppedForBudget} time_stop=${retry.stoppedForTime} auth_stop=${retry.stoppedForAuth}`,
     });
   }
   return NextResponse.json({ ok: true, steps, retry });

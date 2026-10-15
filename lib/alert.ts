@@ -31,10 +31,17 @@ export function reportAlert(a: Alert): void {
   try {
     const url = process.env.DISCORD_WEBHOOK_URL;
     if (!url || !WEBHOOK_RE.test(url)) return;
-    const verdict = gate.allow(`${a.event}:${a.code ?? ""}`);
+    // Per donor, so a second donor's failure within 5 minutes is not hidden. The key stays in memory only.
+    // client_error is self-reported by browsers, so the person never goes into its key: otherwise a
+    // caller could vary the phone to fill the per-minute cap and hide real server alerts.
+    const who =
+      a.event === "client_error"
+        ? (a.donorId ?? "")
+        : (a.donorId ?? a.person?.phone ?? a.person?.email ?? a.person?.name ?? "");
+    const verdict = gate.allow(`${a.event}:${a.code ?? ""}:${who}`);
     if (!verdict.ok) return;
     const envLabel = process.env.VERCEL_ENV ?? "local";
-    dispatch(url, formatAlert(a, envLabel, verdict.suppressed));
+    dispatch(url, formatAlert(a, envLabel, verdict.suppressed, process.env.NEXT_PUBLIC_SITE_URL ?? ""));
   } catch {
     // Alerts must never break the caller.
   }
@@ -48,7 +55,7 @@ export function reportSubmission(n: SubmissionNotice): void {
     const verdict = submissionGate.allow("submission");
     if (!verdict.ok) return;
     const envLabel = process.env.VERCEL_ENV ?? "local";
-    dispatch(url, formatSubmission(n, envLabel, verdict.suppressed));
+    dispatch(url, formatSubmission(n, envLabel, verdict.suppressed, process.env.NEXT_PUBLIC_SITE_URL ?? ""));
   } catch {
     // Notices must never break the caller.
   }

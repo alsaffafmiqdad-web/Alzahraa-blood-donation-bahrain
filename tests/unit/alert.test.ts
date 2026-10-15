@@ -61,6 +61,44 @@ describe("reportAlert", () => {
   });
 });
 
+describe("reportAlert per donor and admin link", () => {
+  const A = "abcdef12-3456-4890-8bcd-ef1234567890";
+  const B = "abcdef12-3456-4890-8bcd-ef1234567891";
+  it("posts email_failed for two different donors, and dedups the same donor", () => {
+    process.env.DISCORD_WEBHOOK_URL = URL_OK;
+    reportAlert({ event: "email_failed", donorId: A });
+    reportAlert({ event: "email_failed", donorId: B });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    reportAlert({ event: "email_failed", donorId: A });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("keys on the person when there is no donor id", () => {
+    process.env.DISCORD_WEBHOOK_URL = URL_OK;
+    reportAlert({ event: "signup_error", code: "server", person: { phone: "33334444" } });
+    reportAlert({ event: "signup_error", code: "server", person: { phone: "33335555" } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("keeps the person out of the key for client_error, so varying it cannot flood the cap", () => {
+    process.env.DISCORD_WEBHOOK_URL = URL_OK;
+    for (let i = 0; i < 20; i++) {
+      reportAlert({ event: "client_error", code: "submit_network", person: { phone: `3333${String(i).padStart(4, "0")}` } });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    reportAlert({ event: "signup_error", code: "server", person: { phone: "33334444" } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("adds an admin link when NEXT_PUBLIC_SITE_URL is set", () => {
+    process.env.DISCORD_WEBHOOK_URL = URL_OK;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://example.org";
+    try {
+      reportAlert({ event: "email_failed", donorId: A });
+    } finally {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).content).toContain(`🔗 admin: https://example.org/admin/donors/${A}`);
+  });
+});
+
 describe("reportSubmission", () => {
   it("does nothing without a webhook or with a non-Discord url", () => {
     reportSubmission({ outcome: "success" });

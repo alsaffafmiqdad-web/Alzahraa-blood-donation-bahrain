@@ -1,4 +1,7 @@
-/* Browser only. Reports a failure code to /api/client-log; never sends personal data. */
+/*
+ * Browser only. Reports a failure code to /api/client-log. May carry the typed name, email and phone
+ * (self-reported by the browser, unverified) so the organisers can follow up. Never the CPR or DOB.
+ */
 import type { ClientErrorCode } from "@/lib/alert-format";
 
 export type ClientErrorReport = {
@@ -7,6 +10,7 @@ export type ClientErrorReport = {
   status?: number;
   attempt?: number;
   locale?: string;
+  person?: { name?: string; email?: string; phone?: string };
 };
 
 const MAX_REPORTS = 5;

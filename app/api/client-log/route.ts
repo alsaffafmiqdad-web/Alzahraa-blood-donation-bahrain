@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { reportAlert } from "@/lib/alert";
-import { CLIENT_ERROR_CODES } from "@/lib/alert-format";
+import { CLIENT_ERROR_CODES, PERSON_MAX } from "@/lib/alert-format";
 import { LOCALES } from "@/lib/config";
 import { STEP_IDS } from "@/lib/signup-steps";
 
@@ -14,13 +14,20 @@ const reportSchema = z.strictObject({
   status: z.number().int().min(0).max(599).optional(),
   attempt: z.number().int().min(0).max(10).optional(),
   locale: z.enum(LOCALES).optional(),
+  person: z
+    .strictObject({
+      name: z.string().max(PERSON_MAX.name).optional(),
+      email: z.string().max(PERSON_MAX.email).optional(),
+      phone: z.string().max(PERSON_MAX.phone).optional(),
+    })
+    .optional(),
 });
 
 function reply(status: number): Response {
   return new Response(null, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-/** Receives a failure code from the join form. Carries no personal data; the raw body is never logged. */
+/** Receives a failure code from the join form, optionally with the self-reported name, email and phone. The raw body is never logged. */
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   if (origin) {
@@ -48,6 +55,7 @@ export async function POST(req: Request) {
     event: "client_error",
     code: r.code,
     detail: `step=${r.step ?? "-"} status=${r.status ?? "-"} attempt=${r.attempt ?? "-"} locale=${r.locale ?? "-"}`,
+    ...(r.person ? { person: r.person } : {}),
   });
   return reply(204);
 }

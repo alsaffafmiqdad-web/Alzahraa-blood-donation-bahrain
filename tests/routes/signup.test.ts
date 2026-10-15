@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   findSubmission: vi.fn(),
   reportAlert: vi.fn(),
   reportSubmission: vi.fn(),
+  getSignupSummary: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -21,6 +22,7 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: m.verifyTurnstile }));
 vi.mock("@/lib/db/public", () => ({ getEvent: m.getEvent, registerDonor: m.registerDonor, findSubmission: m.findSubmission }));
 vi.mock("@/lib/alert", () => ({ reportAlert: m.reportAlert, reportSubmission: m.reportSubmission }));
+vi.mock("@/lib/db/signup-summary", () => ({ getSignupSummary: m.getSignupSummary }));
 vi.mock("@/lib/db/cpr-image", () => ({ attachCprImage: m.attachCprImage }));
 vi.mock("@/lib/email/dispatch", () => ({ sendDonorEmail: m.sendDonorEmail }));
 
@@ -66,6 +68,7 @@ beforeEach(() => {
   m.registerDonor.mockResolvedValue({ ok: true, id: ID });
   m.sendDonorEmail.mockResolvedValue("sent");
   m.attachCprImage.mockResolvedValue(true);
+  m.getSignupSummary.mockResolvedValue({ status: "registered", total: 42 });
 });
 
 describe("signup time budget", () => {
@@ -473,6 +476,7 @@ describe("POST /api/signup idempotency and alerts", () => {
 
 describe("POST /api/signup Discord submission notices", () => {
   /** The single notice for the request (the object is filled in before the route returns). */
+  const PERSON = { name: "Ali Hasan", email: "ali@example.com", phone: "33334444" };
   function notice() {
     expect(m.reportSubmission).toHaveBeenCalledTimes(1);
     return m.reportSubmission.mock.calls[0]![0] as Record<string, unknown>;
@@ -480,7 +484,19 @@ describe("POST /api/signup Discord submission notices", () => {
 
   it("success in slot mode", async () => {
     expect((await POST(req(good))).status).toBe(200);
-    expect(notice()).toEqual({ outcome: "success", mode: "slot", donorId: ID });
+    await flushAfter();
+    expect(notice()).toEqual({ outcome: "success", mode: "slot", donorId: ID, person: PERSON, status: "registered", total: 42 });
+    expect(m.getSignupSummary).toHaveBeenCalledWith(ID);
+  });
+  it("responds without waiting for the summary, and sends the notice only once it is read", async () => {
+    let release: (v: { status: string; total: number }) => void = () => {};
+    m.getSignupSummary.mockReturnValue(new Promise((r) => (release = r)));
+    const res = await POST(req(good));
+    expect(res.status).toBe(200);
+    expect(m.reportSubmission).not.toHaveBeenCalled();
+    release({ status: "waiting", total: 5 });
+    await flushAfter();
+    expect(notice()).toMatchObject({ outcome: "success", status: "waiting", total: 5 });
   });
   it("success in walk-in mode carries the queue number", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -491,7 +507,8 @@ describe("POST /api/signup Discord submission notices", () => {
       const { slotId, ...goodNoSlot } = good;
       void slotId;
       expect((await POST(multipartRequest(goodNoSlot))).status).toBe(200);
-      expect(notice()).toEqual({ outcome: "success", mode: "walk_in", donorId: ID, queueNumber: 7 });
+      await flushAfter();
+      expect(notice()).toEqual({ outcome: "success", mode: "walk_in", donorId: ID, queueNumber: 7, person: PERSON, status: "registered", total: 42 });
     } finally {
       vi.useRealTimers();
     }
@@ -508,7 +525,11 @@ describe("POST /api/signup Discord submission notices", () => {
     });
     const SID = "aaaaaaaa-0000-4000-8000-0000000000aa";
     expect((await POST(req({ ...good, submissionId: SID }))).status).toBe(200);
-    expect(notice()).toMatchObject({ outcome: "replay", mode: "slot", donorId: ID });
+    const n = notice();
+    expect(n).toMatchObject({ outcome: "replay", mode: "slot", donorId: ID });
+    expect(n.total).toBeUndefined();
+    expect(n.status).toBeUndefined();
+    expect(m.getSignupSummary).not.toHaveBeenCalled();
   });
   it("validation carries field codes only, never values", async () => {
     expect((await POST(req({ ...good, cpr: "123" }))).status).toBe(400);
@@ -525,11 +546,13 @@ describe("POST /api/signup Discord submission notices", () => {
     m.checkSignupRateLimit.mockResolvedValue(false);
     await POST(req(good));
     expect(notice()).toEqual({ outcome: "rate_limited" });
+    expect(m.reportAlert).toHaveBeenCalledWith({ event: "signup_rate_limited" });
     m.reportSubmission.mockClear();
     m.checkSignupRateLimit.mockResolvedValue(true);
     m.recordSignupAttempt.mockResolvedValue(false);
     await POST(req(good));
-    expect(notice()).toMatchObject({ outcome: "rate_limited", mode: "slot" });
+    expect(notice()).toMatchObject({ outcome: "rate_limited", mode: "slot", person: PERSON });
+    expect(m.reportAlert).toHaveBeenLastCalledWith({ event: "signup_rate_limited", person: PERSON });
   });
   it("duplicate_cpr, slot_full and slot_unavailable", async () => {
     for (const reason of ["duplicate_cpr", "slot_full", "slot_unavailable"]) {
@@ -565,14 +588,46 @@ describe("POST /api/signup Discord submission notices", () => {
     expect((await POST(req(good))).status).toBe(500);
     expect(notice()).toMatchObject({ outcome: "server" });
   });
-  it("never carries the CPR, name, phone or email from the request", async () => {
+  it("carries name, email and phone; never the CPR or DOB", async () => {
     await POST(req(good));
     await POST(req({ ...good, cpr: "123" }));
     m.registerDonor.mockResolvedValue({ ok: false, reason: "duplicate_cpr" });
     await POST(req(good));
+    await flushAfter();
     const all = JSON.stringify(m.reportSubmission.mock.calls);
-    for (const secret of [good.cpr, good.fullName, "Ali", good.phone, good.email, good.dob]) {
-      expect(all).not.toContain(secret);
-    }
+    for (const shown of [good.fullName, good.phone, good.email]) expect(all).toContain(shown);
+    for (const secret of [good.cpr, good.dob]) expect(all).not.toContain(secret);
+  });
+  it("a validation failure still carries the typed name, email and phone, and not the CPR", async () => {
+    expect((await POST(req({ ...good, cpr: "123456789012" }))).status).toBe(400);
+    const n = notice();
+    expect(n).toMatchObject({ outcome: "validation", person: PERSON });
+    expect(JSON.stringify(n)).not.toContain("123456789012");
+    expect(n.total).toBeUndefined();
+    expect(n.status).toBeUndefined();
+  });
+  it("a JSON body that is not an object still produces a notice without a person", async () => {
+    expect((await POST(req("[1]", { "content-type": "application/json" }))).status).toBe(400);
+    expect(notice().person).toBeUndefined();
+  });
+  it("leaves total out when the count fails, and the signup still returns 200", async () => {
+    m.getSignupSummary.mockResolvedValue({ status: "registered" });
+    expect((await POST(req(good))).status).toBe(200);
+    await flushAfter();
+    const n = notice();
+    expect(n).toMatchObject({ outcome: "success", status: "registered" });
+    expect(n.total).toBeUndefined();
+  });
+  it("carries a different status and total from the summary", async () => {
+    m.getSignupSummary.mockResolvedValue({ status: "waiting", total: 9 });
+    expect((await POST(req(good))).status).toBe(200);
+    await flushAfter();
+    expect(notice()).toMatchObject({ status: "waiting", total: 9 });
+  });
+  it("sends the person with signup_error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.registerDonor.mockRejectedValue(new Error("boom"));
+    await POST(req(good));
+    expect(m.reportAlert).toHaveBeenCalledWith(expect.objectContaining({ event: "signup_error", person: PERSON }));
   });
 });

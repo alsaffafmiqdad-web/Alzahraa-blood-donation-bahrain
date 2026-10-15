@@ -19,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PrintMenu } from "@/components/admin/PrintMenu";
 import { StatusControl } from "@/components/admin/StatusControl";
 
 type Props = {
@@ -76,11 +77,7 @@ export function DonorActions({ donorId, name, status, hasEmail, emailSent, label
           </Button>
         </>
       )}
-      <Button asChild variant="outline">
-        <Link href={printUrl} target="_blank">
-          Print
-        </Link>
-      </Button>
+      <PrintMenu cardHref={printUrl} certificateHref={`/admin/donors/${donorId}/certificate`} />
       <StatusControl donorId={donorId} name={name} status={status} labels={labels} />
       <Button asChild variant="outline">
         <Link href={`/admin/donors/${donorId}/edit`}>Edit</Link>
@@ -97,6 +94,8 @@ export function DonorActions({ donorId, name, status, hasEmail, emailSent, label
               else if (res.outcome === "queued")
                 toast.warning("Daily email limit reached; it will be retried by the daily job");
               else if (res.outcome === "none") toast.error("This donor has no email address");
+              else if (res.outcome === "auth_failed")
+                toast.error("Email login failed. The Gmail app password needs to be updated.");
               else toast.error("Email failed. See the error on this page.");
               router.refresh();
             })

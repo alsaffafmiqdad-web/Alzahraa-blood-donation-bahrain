@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { reportAlert, reportSubmission } from "@/lib/alert";
-import type { SubmissionNotice } from "@/lib/alert-format";
+import { personFromPayload, type SubmissionNotice } from "@/lib/alert-format";
 import { createCardToken } from "@/lib/card-link";
 import { MAX_SIGNUP_BODY_BYTES } from "@/lib/config";
 import {
@@ -11,8 +11,10 @@ import {
 } from "@/lib/cpr-image";
 import { attachCprImage } from "@/lib/db/cpr-image";
 import { findSubmission, getEvent, registerDonor } from "@/lib/db/public";
+import { getSignupSummary } from "@/lib/db/signup-summary";
 import { sendDonorEmail } from "@/lib/email/dispatch";
 import { isWalkInMode } from "@/lib/event-mode";
+import { describeError } from "@/lib/describe-error";
 import { shortRef } from "@/lib/format";
 import { checkSignupRateLimit, clientIp, recordSignupAttempt } from "@/lib/rate-limit";
 import { computeFlags } from "@/lib/screening";
@@ -35,14 +37,32 @@ function json(body: Record<string, unknown>, status: number, headers?: Record<st
 /** One Discord notice per request, whatever the outcome. `handle` sets `n` right before each return. */
 export async function POST(req: Request) {
   const n: SubmissionNotice = { outcome: "server" };
+  const defer: { donorId?: string } = {};
   try {
-    return await handle(req, n);
+    return await handle(req, n, defer);
   } finally {
-    reportSubmission(n);
+    const donorId = defer.donorId;
+    if (donorId) {
+      // A new registration: the status and total are read, and the notice sent, after the response.
+      // getSignupSummary never throws; a failed read leaves the value out of the notice.
+      const send = async () => {
+        const facts = await getSignupSummary(donorId);
+        n.status = facts.status;
+        n.total = facts.total;
+        reportSubmission(n);
+      };
+      try {
+        after(send);
+      } catch {
+        reportSubmission(n); // after() unavailable: send the notice without the summary
+      }
+    } else {
+      reportSubmission(n);
+    }
   }
 }
 
-async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
+async function handle(req: Request, n: SubmissionNotice, defer: { donorId?: string }): Promise<Response> {
   try {
     const ip = clientIp(req);
     if (!(await checkSignupRateLimit(ip))) {
@@ -68,6 +88,7 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
         n.outcome = "bad_json";
         return json({ ok: false, error: "bad_json" }, 400);
       }
+      n.person = personFromPayload(raw);
     } else if (contentType.startsWith("multipart/form-data")) {
       const length = Number(req.headers.get("content-length"));
       if (!req.headers.get("content-length") || !Number.isFinite(length) || length > MULTIPART_SIGNUP_MAX_BYTES) {
@@ -96,6 +117,7 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
         n.outcome = "bad_json";
         return json({ ok: false, error: "bad_json" }, 400);
       }
+      n.person = personFromPayload(raw);
       const file = form.get("cprImage");
       if (file !== null) {
         if (typeof file === "string" || file.size === 0) {
@@ -133,6 +155,7 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
       return json({ ok: false, error: "validation", fields }, 400);
     }
     const input = parsed.data;
+    n.person = { name: input.fullName, email: input.email ?? null, phone: input.phone ?? null };
 
     if (!(await verifyTurnstile(input.token, ip))) {
       n.outcome = "turnstile";
@@ -141,7 +164,7 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
 
     // Count the attempt only now: typos (Zod) and failed Turnstile checks never burn the quota.
     if (!(await recordSignupAttempt(ip))) {
-      reportAlert({ event: "signup_rate_limited" });
+      reportAlert({ event: "signup_rate_limited", person: n.person });
       n.outcome = "rate_limited";
       return json({ ok: false, error: "rate_limited" }, 429, { "Retry-After": "600" });
     }
@@ -159,9 +182,9 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
       try {
         card = createCardToken(id);
       } catch (e) {
-        const message = e instanceof Error ? e.message : "unknown";
+        const message = describeError(e);
         console.error(`card token error donor=${id}: ${message}`);
-        reportAlert({ event: "card_token_failed", donorId: id, detail: message });
+        reportAlert({ event: "card_token_failed", donorId: id, where: "/api/signup", detail: message, person: n.person });
       }
       const ref = shortRef(id);
       n.outcome = "success";
@@ -178,7 +201,7 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
       if (!input.submissionId) return null;
       const prior = await findSubmission(input.submissionId);
       if (!prior || prior.cpr !== input.cpr) return null;
-      if (image && !prior.hasImage) await attachCprImage(prior.id, image.bytes, image.ext);
+      if (image && !prior.hasImage) await attachCprImage(prior.id, image.bytes, image.ext, n.person);
       console.info(`signup replay donor=${prior.id}`);
       // Not sent yet usually means the first request's after() send is still running.
       const emailStatus = !prior.email ? "none" : prior.emailSent ? "sent" : "sending";
@@ -226,7 +249,7 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
     }
 
     // The photo is a convenience for staff: if the upload fails the registration still stands.
-    if (image) await attachCprImage(result.id, image.bytes, image.ext);
+    if (image) await attachCprImage(result.id, image.bytes, image.ext, n.person);
 
     // The email (PDF render plus Gmail SMTP, several seconds) is sent after the response, so the
     // donor isn't kept waiting. sendDonorEmail never throws; a failed or skipped send is left for
@@ -240,11 +263,13 @@ async function handle(req: Request, n: SubmissionNotice): Promise<Response> {
       emailStatus = "sending";
     }
 
-    return success(result.id, walkIn, slotId, result.queueNumber, emailStatus);
+    const res = success(result.id, walkIn, slotId, result.queueNumber, emailStatus);
+    defer.donorId = result.id;
+    return res;
   } catch (e) {
-    const message = e instanceof Error ? e.message : "unknown";
+    const message = describeError(e);
     console.error(`signup error: ${message}`);
-    reportAlert({ event: "signup_error", code: "server", detail: message });
+    reportAlert({ event: "signup_error", code: "server", where: "/api/signup", detail: message, person: n.person });
     n.outcome = "server";
     return json({ ok: false, error: "server" }, 500);
   }

@@ -127,7 +127,7 @@ describe("cron email retry limits", () => {
     process.env.EMAIL_DAILY_BUDGET = "95";
     const res = await call("Bearer cron-secret");
     const body = await res.json();
-    expect(body.retry).toEqual({ attempted: 95, sent: 95, failed: 0, stoppedForBudget: false, stoppedForTime: false });
+    expect(body.retry).toEqual({ attempted: 95, sent: 95, failed: 0, stoppedForBudget: false, stoppedForTime: false, stoppedForAuth: false });
     expect(st.resend).toHaveBeenCalledTimes(95);
     expect(st.lastQuery?.limit).toBe(95);
     expect(st.donors.slice(0, 95).every((d) => d.email_sent)).toBe(true);
@@ -193,14 +193,14 @@ describe("cron email retry limits", () => {
     st.donors = mk(5);
     for (let i = 0; i < 95; i++) st.sends.push({ id: i + 1, donor_id: "x", status: "claimed", at: st.now - 60_000 });
     const body = await (await call("Bearer cron-secret")).json();
-    expect(body.retry).toEqual({ attempted: 0, sent: 0, failed: 0, stoppedForBudget: true, stoppedForTime: false });
+    expect(body.retry).toEqual({ attempted: 0, sent: 0, failed: 0, stoppedForBudget: true, stoppedForTime: false, stoppedForAuth: false });
     expect(st.resend).not.toHaveBeenCalled();
   });
   it("failed sends do not consume budget but count as an attempt on the donor", async () => {
     st.donors = mk(2);
     st.resend.mockResolvedValue({ data: null, error: { message: "nope" } });
     const body = await (await call("Bearer cron-secret")).json();
-    expect(body.retry).toEqual({ attempted: 2, sent: 0, failed: 2, stoppedForBudget: false, stoppedForTime: false });
+    expect(body.retry).toEqual({ attempted: 2, sent: 0, failed: 2, stoppedForBudget: false, stoppedForTime: false, stoppedForAuth: false });
     expect(st.donors.map((d) => d.email_attempts)).toEqual([1, 1]);
     expect(st.sends.every((s) => s.status === "failed")).toBe(true);
   });

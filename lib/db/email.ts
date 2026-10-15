@@ -8,14 +8,14 @@ export async function claimEmailSend(donorId: string, budget: number): Promise<n
     p_donor_id: donorId,
     p_budget: budget,
   });
-  if (error) throw new Error(`claim_email_send failed: ${error.message}`);
+  if (error) throw new Error(`claim_email_send failed: ${error.message}`, { cause: error });
   return typeof data === "number" ? data : data === null || data === undefined ? null : Number(data);
 }
 
 /** Emails still allowed in the rolling 24h window. The SQL function is the single source of this arithmetic. */
 export async function emailBudgetRemaining(budget: number): Promise<number> {
   const { data, error } = await createSupabaseAdminClient().rpc("email_budget_remaining", { p_budget: budget });
-  if (error) throw new Error(`email_budget_remaining failed: ${error.message}`);
+  if (error) throw new Error(`email_budget_remaining failed: ${error.message}`, { cause: error });
   return Math.max(0, Number(data ?? 0));
 }
 
@@ -25,7 +25,7 @@ export async function finishEmailSend(claimId: number, success: boolean, errorTe
     p_success: success,
     p_error: errorText,
   });
-  if (error) throw new Error(`finish_email_send failed: ${error.message}`);
+  if (error) throw new Error(`finish_email_send failed: ${error.message}`, { cause: error });
 }
 
 /** Donor ids with an email that is not yet sent and under the attempt cap, oldest first. */
@@ -38,7 +38,7 @@ export async function listRetryCandidates(limit: number): Promise<string[]> {
     .lt("email_attempts", EMAIL_MAX_ATTEMPTS)
     .order("created_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(`listRetryCandidates failed: ${error.message}`);
+  if (error) throw new Error(`listRetryCandidates failed: ${error.message}`, { cause: error });
   return ((data ?? []) as { id: string }[]).map((r) => r.id);
 }
 
@@ -70,7 +70,7 @@ export async function getDonorForEmail(donorId: string): Promise<DonorForEmail |
     )
     .eq("id", donorId)
     .maybeSingle();
-  if (error) throw new Error(`getDonorForEmail failed: ${error.message}`);
+  if (error) throw new Error(`getDonorForEmail failed: ${error.message}`, { cause: error });
   if (!donor) return null;
   let slotTime: string | null = null;
   if (donor.slot_id !== null) {

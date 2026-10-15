@@ -26,12 +26,13 @@ Read [README.md](README.md) first, then [docs/architecture.md](docs/architecture
 - Walk-in mode starts at the event start time on the event date (Bahrain time). Online walk-ins get a queue number automatically, from the same sequence as desk check-in. The start number is editable on `/admin/event`.
 - The signup rate limit stays at 25 per IP per 10 minutes.
 - The donor's PDF (download and email) is the same A4 Donor Registration Form the admins print, including the full CPR, flags and notes. `lib/pdf/RegistrationForm.tsx` must mirror `components/admin/PrintForm.tsx`; change both together.
+- Discord alerts and signup notices may carry the donor's name, email and phone (never the CPR, DOB, answers or photo) so a failed signup can be traced. The webhook channel must be private. The privacy notice was left unchanged.
 
 ## Conventions
 
 - **The server decides.** Walk-in mode, flags and queue numbers are worked out on the server. Never trust client input for them.
 - **Server-only code.** Anything touching the service role, email or the PDF imports `server-only`. Admin pages and actions call `requireAdmin()` first.
-- **No personal data in URLs or logs.** Log donor IDs only.
+- **No personal data in URLs or logs.** Log donor IDs only. Discord alerts are the exception: they may carry the donor's name, email and phone (never the CPR) for tracing (owner decision).
 - **Copy.** User-facing text lives in `lib/i18n/dictionaries/` (`ar.ts` and `en.ts` must have the same keys). Don't use em or en dashes in copy; a test enforces this.
 - **Database.** Migrations are forward-only, so add a new file and don't edit an applied one. Revoke execute from `public`, `anon` and `authenticated` on new functions. Apply new migrations locally with `pnpm dlx supabase migration up --local`.
-- **Tests.** Vitest runs in a Node environment with no DOM: component tests use `renderToStaticMarkup`, and pure logic goes in `lib/` so it can be tested. Before handing back work, run `pnpm test`, `pnpm typecheck`, `pnpm exec eslint lib components app tests` and, for SQL changes, `bash supabase/sql-tests/run.sh`.
+- **Tests.** Vitest runs in a Node environment with no DOM: component tests use `renderToStaticMarkup`, and pure logic goes in `lib/` so it can be tested. Before handing back work, run `pnpm test`, `pnpm typecheck`, `pnpm lint:es` and, for SQL changes, `bash supabase/sql-tests/run.sh`.
