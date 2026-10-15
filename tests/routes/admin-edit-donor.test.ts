@@ -8,6 +8,8 @@ class RedirectError extends Error {
 
 const h = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
+  eqCalls: [] as [string, unknown][],
+  lookup: { data: { id: "11111111-2222-4333-8444-555555555555" } as unknown, error: null as unknown },
   current: { id: "x", source: "walk_in", email: null as string | null },
   updates: [] as Record<string, unknown>[],
 }));
@@ -29,9 +31,19 @@ function fakeSupabase() {
   return {
     from: (table: string) => {
       const c: Record<string, unknown> = {};
-      c.select = () => c;
-      c.eq = () => c;
-      c.maybeSingle = async () => ({ data: table === "donors" ? h.current : null, error: null });
+      let selected = "";
+      c.select = (cols: string) => {
+        selected = cols;
+        return c;
+      };
+      c.eq = (col: string, val: unknown) => {
+        h.eqCalls.push([col, val]);
+        return c;
+      };
+      c.maybeSingle = async () => {
+        if (table === "donors" && selected === "id" && h.eqCalls.some(([col]) => col === "cpr")) return h.lookup;
+        return { data: table === "donors" ? h.current : null, error: null };
+      };
       c.single = async () => ({ data: table === "event" ? { event_date: "2026-10-16" } : null, error: null });
       c.update = (values: Record<string, unknown>) => {
         h.updates.push(values);
@@ -58,6 +70,8 @@ const edit = async (extra: Record<string, string>) => {
 beforeEach(() => {
   vi.clearAllMocks();
   h.updates.length = 0;
+  h.eqCalls.length = 0;
+  h.lookup = { data: { id: ID }, error: null };
   h.current = { id: ID, source: "walk_in", email: "old@example.com" };
   h.requireAdmin.mockResolvedValue({ supabase: fakeSupabase(), userId: "u1", displayName: "Admin" });
 });
@@ -103,13 +117,39 @@ describe("searchDonors (L6): the CPR never reaches the URL", () => {
     }
     throw new Error("no redirect");
   };
-  it("a full CPR becomes its last 4 digits", async () => {
+  it("a full CPR is looked up and the URL carries the donor id", async () => {
     const to = await go({ q: "990101123", status: "all" });
-    expect(to).toBe("/admin?q=1123");
+    expect(to).toBe(`/admin?donor=${ID}`);
     expect(to).not.toContain("990101123");
+    expect(h.eqCalls).toContainEqual(["cpr", "990101123"]);
   });
-  it("Arabic digits and separators are recognised as a CPR too", async () => {
-    expect(await go({ q: "٩٩٠-١٠١ ١٢٣" })).toBe("/admin?q=1123");
+  it.each(["٩٩٠-١٠١ ١٢٣", " 990 101 123 "])("a full CPR %j is normalised for the lookup", async (q) => {
+    expect(await go({ q })).toBe(`/admin?donor=${ID}`);
+    expect(h.eqCalls).toContainEqual(["cpr", "990101123"]);
+  });
+  it("keeps the other filters", async () => {
+    expect(await go({ q: "990101123", status: "waiting", slot: "3", sort: "queue", flagged: "1" })).toBe(
+      `/admin?donor=${ID}&status=waiting&slot=3&sort=queue&flagged=1`,
+    );
+  });
+  it("no match goes to donor=none", async () => {
+    h.lookup = { data: null, error: null };
+    expect(await go({ q: "990101123" })).toBe("/admin?donor=none");
+  });
+  it("a lookup error goes to donor=error and never logs the CPR", async () => {
+    h.lookup = { data: null, error: { message: "boom" } };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await go({ q: "990101123" })).toBe("/admin?donor=error");
+    expect(spy).toHaveBeenCalled();
+    expect(JSON.stringify(spy.mock.calls)).not.toContain("990101123");
+    spy.mockRestore();
+  });
+  it("a forged donor field is ignored", async () => {
+    expect(await go({ q: "Ali", donor: ID })).toBe("/admin?q=Ali");
+  });
+  it("partial digits stay a plain search with no lookup", async () => {
+    expect(await go({ q: "1123" })).toBe("/admin?q=1123");
+    expect(h.eqCalls.some(([col]) => col === "cpr")).toBe(false);
   });
   it("names and other filters pass through", async () => {
     expect(await go({ q: "Ali", status: "waiting", slot: "3", sort: "queue", flagged: "1" })).toBe(
@@ -122,5 +162,6 @@ describe("searchDonors (L6): the CPR never reaches the URL", () => {
   it("requires an admin", async () => {
     h.requireAdmin.mockRejectedValue(new RedirectError("/admin/login"));
     await expect(searchDonors(fd({ q: "x" }))).rejects.toMatchObject({ to: "/admin/login" });
+    expect(h.eqCalls).toHaveLength(0);
   });
 });

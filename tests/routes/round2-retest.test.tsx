@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /** Independent re-test of fix round 2 (tester). Behaviour only, mocks at the module boundary. */
 class RedirectError extends Error {
@@ -46,11 +46,18 @@ async function searchTo(q: string): Promise<string> {
 }
 
 describe("L6 no CPR in a URL", () => {
+  beforeEach(() => {
+    const c: Record<string, unknown> = {};
+    c.select = () => c;
+    c.eq = () => c;
+    c.maybeSingle = async () => ({ data: { id: "00000000-0000-4000-8000-000000000001" }, error: null });
+    h.supabase = { from: () => c };
+  });
   it.each(["990101123", " 990101123 ", "990-101-123", "990 101 123", "٩٩٠١٠١١٢٣", "۹۹۰۱۰۱۱۲۳"])(
     "search %j redirects without the full CPR",
     async (q) => {
       const to = await searchTo(q);
-      expect(to).toBe("/admin?q=1123");
+      expect(to).toBe("/admin?donor=00000000-0000-4000-8000-000000000001");
       expect(decodeURIComponent(to)).not.toMatch(/990\D*101\D*123/);
     },
   );

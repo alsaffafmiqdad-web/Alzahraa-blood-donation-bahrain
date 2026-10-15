@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   computeStats,
   filterDonors,
+  fullCprOf,
   parseFilters,
   sortDonors,
   toListRow,
-  urlSafeSearch,
   withRegistrationOrder,
   type DonorRecord,
 } from "@/lib/donor-filters";
@@ -83,19 +83,36 @@ describe("donor filters", () => {
     expect(parseFilters({ status: "bogus", sort: "evil", slot: "x" })).toMatchObject({ status: undefined, sort: "registration", slot: undefined });
     expect(parseFilters({ flagged: "1", sort: "queue", status: "donated" })).toMatchObject({ flagged: true, sort: "queue", status: "donated" });
   });
+  it("a full CPR matches one donor, the last 4 digits match both", () => {
+    const two = withRegistrationOrder([
+      d({ id: A, cpr: "990101123", created_at: "2026-10-01T10:01:00Z" }),
+      d({ id: B, cpr: "880201123", created_at: "2026-10-01T10:02:00Z" }),
+    ]);
+    expect(filterDonors(two, { q: "990101123" }).map((r) => r.id)).toEqual([A]);
+    expect(filterDonors(two, { q: "1123" })).toHaveLength(2);
+  });
+  it("parses the donor filter", () => {
+    expect(parseFilters({ donor: A }).donor).toBe(A);
+    expect(parseFilters({ donor: A.toUpperCase() }).donor).toBe(A);
+    expect(parseFilters({ donor: "none" }).donor).toBe("none");
+    expect(parseFilters({ donor: "error" }).donor).toBe("error");
+    expect(parseFilters({ donor: "abc" }).donor).toBe("invalid");
+    expect(parseFilters({ donor: "990101123" }).donor).toBe("invalid");
+    expect(parseFilters({}).donor).toBeUndefined();
+    expect(parseFilters({ donor: "" }).donor).toBeUndefined();
+  });
+  it("filters by donor id, ANDed with the other filters", () => {
+    expect(filterDonors(numbered, { donor: A }).map((r) => r.id)).toEqual([A]);
+    expect(filterDonors(numbered, { donor: A, status: "donated" })).toEqual([]);
+    for (const donor of ["none", "invalid", "error"]) expect(filterDonors(numbered, { donor })).toEqual([]);
+  });
 });
 
-describe("urlSafeSearch", () => {
-  it("reduces a 9 digit CPR (any digit script, with spaces or hyphens) to its last 4 digits", () => {
-    expect(urlSafeSearch("990101123")).toBe("1123");
-    expect(urlSafeSearch(" 990-101-123 ")).toBe("1123");
-    expect(urlSafeSearch("٩٩٠١٠١١٢٣")).toBe("1123");
+describe("fullCprOf", () => {
+  it("returns the normalised CPR", () => {
+    for (const q of ["990101123", " 990-101-123 ", "٩٩٠١٠١١٢٣"]) expect(fullCprOf(q)).toBe("990101123");
   });
-  it("leaves names, phones, refs and partial digits alone", () => {
-    expect(urlSafeSearch("Ali Hasan")).toBe("Ali Hasan");
-    expect(urlSafeSearch("33334444")).toBe("33334444");
-    expect(urlSafeSearch("ABCDEF12")).toBe("ABCDEF12");
-    expect(urlSafeSearch("1123")).toBe("1123");
-    expect(urlSafeSearch("9901011234")).toBe("9901011234");
+  it("returns null for anything else", () => {
+    for (const q of ["Ali", "1123", "33334444", "9901011234"]) expect(fullCprOf(q)).toBeNull();
   });
 });

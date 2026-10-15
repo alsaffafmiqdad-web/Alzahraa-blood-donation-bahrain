@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import type { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { checkInNotice } from "@/lib/check-in-notice";
-import { parseFilters, urlSafeSearch, type Status } from "@/lib/donor-filters";
+import { fullCprOf, parseFilters, type Status } from "@/lib/donor-filters";
 import { sendDonorEmail, type EmailOutcome } from "@/lib/email/dispatch";
 import { CPR_IMAGE_BUCKET, CPR_IMAGE_MIME, cprImagePath, sniffImageType } from "@/lib/cpr-image";
 import { createAdmin } from "@/lib/db/admins";
@@ -85,15 +85,29 @@ export async function signOut(): Promise<void> {
 
 /**
  * The dashboard search form posts here (a Server Action is a POST), then redirects to a clean GET URL.
- * A full CPR typed into the box is reduced to its last 4 digits so it never lands in the URL or logs.
+ * A full CPR is never put in the URL: it is looked up here (the CPR is unique) and the URL carries the donor id.
  */
 export async function searchDonors(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const { supabase } = await requireAdmin();
   const raw: Record<string, string> = {};
   for (const [k, v] of formData.entries()) if (typeof v === "string" && !k.startsWith("$ACTION")) raw[k] = v;
+  delete raw.donor; // only the lookup below may set it
   const f = parseFilters(raw);
+  const exact = f.q ? fullCprOf(f.q) : null;
   const qs = new URLSearchParams();
-  if (f.q) qs.set("q", urlSafeSearch(f.q));
+  if (exact) {
+    const { data, error } = await supabase.from("donors").select("id").eq("cpr", exact).maybeSingle();
+    let found = "none";
+    if (error) {
+      console.error(`searchDonors: donor lookup failed: ${error.message}`);
+      found = "error";
+    } else if (data) {
+      found = (data as { id: string }).id;
+    }
+    qs.set("donor", found);
+  } else if (f.q) {
+    qs.set("q", f.q);
+  }
   if (f.status && f.status !== "all") qs.set("status", f.status);
   if (f.slot) qs.set("slot", f.slot);
   if (f.source && f.source !== "all") qs.set("source", f.source);

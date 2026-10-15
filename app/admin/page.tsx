@@ -58,8 +58,19 @@ export default async function DashboardPage({
   const stats = computeStats(donors);
   const inProgress = stats.byStatus.verified + stats.byStatus.waiting + stats.byStatus.screening;
 
+  const picked = filters.donor ? donors.find((d) => d.id === filters.donor) : undefined;
+  const searchValue = filters.q ?? picked?.cpr ?? "";
+  const donorMessage =
+    filters.donor && !picked
+      ? filters.donor === "none"
+        ? "No donor has that CPR number."
+        : filters.donor === "error"
+          ? "Could not look up that CPR number. Please try again."
+          : "No donor matches this link. The donor may have been deleted."
+      : null;
+
   const printParams = new URLSearchParams();
-  for (const key of ["q", "status", "flagged", "slot", "source", "sort"] as const) {
+  for (const key of ["q", "donor", "status", "flagged", "slot", "source", "sort"] as const) {
     const v = filters[key];
     if (v !== undefined && v !== false) printParams.set(key, v === true ? "1" : String(v));
   }
@@ -98,7 +109,7 @@ export default async function DashboardPage({
       <form action={searchDonors} className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-white p-3">
         <label className="flex flex-col gap-1 text-xs text-ink-soft">
           Search
-          <input name="q" defaultValue={filters.q ?? ""} placeholder="Name, CPR (last 4), phone or ref" className={inputCls + " w-56"} />
+          <input name="q" defaultValue={searchValue} placeholder="Name, CPR, phone or ref" className={inputCls + " w-56"} />
         </label>
         <label className="flex flex-col gap-1 text-xs text-ink-soft">
           Status
@@ -152,6 +163,16 @@ export default async function DashboardPage({
         </Button>
       </form>
 
+      {donorMessage &&
+        (filters.donor === "error" ? (
+          <p role="alert" className="mb-2 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger-dark">
+            {donorMessage}
+          </p>
+        ) : (
+          <p role="status" className="mb-2 rounded-lg border border-line bg-white p-3 text-sm text-ink-soft">
+            {donorMessage}
+          </p>
+        ))}
       <p className="mb-2 text-sm text-ink-soft">
         Showing {rows.length} of {stats.total}
       </p>
