@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarDays, Loader2 } from "lucide-react";
+import { PERSON_MAX } from "@/lib/alert-format";
 import { BLOOD_TYPES, AGE_MAX, AGE_MIN } from "@/lib/config";
 import { cprInput, phoneInput } from "@/lib/cpr";
 import { shouldAdvance, typingCountryCode } from "@/lib/auto-advance";
@@ -501,12 +502,18 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
     };
     const sid = submissionId ?? crypto.randomUUID();
     setSubmissionId(sid);
+    // Self-reported contact for the error report, so the organisers can follow up. Trimmed, capped, empty omitted.
+    const person: NonNullable<Parameters<typeof reportClientError>[0]["person"]> = {};
+    for (const key of ["name", "email", "phone"] as const) {
+      const value = (key === "name" ? v.fullName : v[key]).trim().slice(0, PERSON_MAX[key]);
+      if (value) person[key] = value;
+    }
     try {
       for (let attempt = 0; attempt <= MAX_AUTO_RETRIES; attempt++) {
         const tk = tokenRef.current || (await waitForToken(TOKEN_WAIT_MS));
         if (!tk) {
           failed(dict.errors.turnstile_wait, true);
-          reportClientError({ code: "turnstile_timeout", step: "review", attempt, locale });
+          reportClientError({ code: "turnstile_timeout", step: "review", attempt, locale, person });
           return;
         }
         const payload = {
@@ -597,6 +604,7 @@ export function SignupForm({ locale, dict, slots, eventDate, slotHint, walkIn, e
             status: outcome.status,
             attempt,
             locale,
+            person,
           });
           return;
         }

@@ -19,6 +19,27 @@ describe("POST /api/client-log", () => {
     expect(reportAlert).toHaveBeenCalledTimes(1);
     expect(reportAlert).toHaveBeenCalledWith({ event: "client_error", code: "submit_network", detail: "step=review status=0 attempt=2 locale=ar" });
   });
+  it("accepts a person and forwards it", async () => {
+    const person = { name: "Ali", email: "ali@example.com", phone: "33334444" };
+    expect((await post({ code: "submit_network", person })).status).toBe(204);
+    expect(reportAlert).toHaveBeenCalledWith({
+      event: "client_error",
+      code: "submit_network",
+      detail: "step=- status=- attempt=- locale=-",
+      person,
+    });
+  });
+  it("400 on an unknown key inside person or an over-length field", async () => {
+    expect((await post({ code: "submit_network", person: { name: "Ali", cpr: "990101123" } })).status).toBe(400);
+    expect((await post({ code: "submit_network", person: { name: "a".repeat(151) } })).status).toBe(400);
+    expect((await post({ code: "submit_network", person: { email: "e".repeat(255) } })).status).toBe(400);
+    expect((await post({ code: "submit_network", person: { phone: "1".repeat(21) } })).status).toBe(400);
+    expect(reportAlert).not.toHaveBeenCalled();
+  });
+  it("accepts the largest person inside the body limit", async () => {
+    const person = { name: "n".repeat(150), email: "e".repeat(254), phone: "1".repeat(20) };
+    expect((await post({ code: "submit_network", step: "review", status: 599, attempt: 10, locale: "ar", person })).status).toBe(204);
+  });
   it("uses - for missing values", async () => {
     await post({ code: "turnstile_timeout" });
     expect(reportAlert.mock.calls[0]![0].detail).toBe("step=- status=- attempt=- locale=-");

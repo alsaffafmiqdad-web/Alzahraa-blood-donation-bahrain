@@ -1,13 +1,15 @@
 import "server-only";
 import { reportAlert } from "@/lib/alert";
 import { EMAIL_CONCURRENCY } from "@/lib/config";
-import { claimEmailSend, finishEmailSend, getDonorForEmail } from "@/lib/db/email";
+import { claimEmailSend, finishEmailSend, getDonorForEmail, type DonorForEmail } from "@/lib/db/email";
+import { describeError } from "@/lib/describe-error";
 import { emailConfig, emailDailyBudget } from "@/lib/env";
+import { isEmailAuthError } from "@/lib/email/errors";
 import { sendConfirmationEmail } from "@/lib/email/send";
 import { donorCardData, registrationFormData } from "@/lib/pdf/donor-card-pdf";
 import { renderDonorCard } from "@/lib/pdf/render";
 
-export type EmailOutcome = "sent" | "queued" | "failed" | "none";
+export type EmailOutcome = "sent" | "queued" | "failed" | "auth_failed" | "none";
 
 /**
  * Sends the bilingual confirmation email with the donor card PDF.
@@ -15,8 +17,10 @@ export type EmailOutcome = "sent" | "queued" | "failed" | "none";
  */
 export async function sendDonorEmail(donorId: string): Promise<EmailOutcome> {
   let claimId: number | null = null;
+  let donor: DonorForEmail | null = null;
+  const person = () => (donor ? { name: donor.fullName, email: donor.email, phone: donor.phone } : undefined);
   try {
-    const donor = await getDonorForEmail(donorId);
+    donor = await getDonorForEmail(donorId);
     if (!donor || !donor.email) return "none";
     if (!emailConfig()) {
       console.warn(`email skipped donor=${donorId}: email is not configured`);
@@ -33,16 +37,21 @@ export async function sendDonorEmail(donorId: string): Promise<EmailOutcome> {
     claimId = null;
     if (!result.ok) {
       console.error(`email error donor=${donorId}: ${result.error}`);
-      reportAlert({ event: "email_failed", donorId, detail: result.error });
+      if (isEmailAuthError(result.error)) {
+        reportAlert({ event: "email_auth_failed", detail: result.error });
+        return "auth_failed";
+      }
+      reportAlert({ event: "email_failed", donorId, detail: result.error, person: person() });
+      return "failed";
     }
-    return result.ok ? "sent" : "failed";
+    return "sent";
   } catch (e) {
-    const message = e instanceof Error ? e.message : "unknown";
+    const message = describeError(e);
     console.error(`email error donor=${donorId}: ${message}`);
-    reportAlert({ event: "email_failed", donorId, detail: message });
+    reportAlert({ event: "email_failed", donorId, detail: message, person: person() });
     if (claimId !== null) {
       try {
-        await finishEmailSend(claimId, false, message);
+        await finishEmailSend(claimId, false, e instanceof Error ? e.message : "unknown");
       } catch {
         // The claim row stays 'claimed' and still counts against the budget. Acceptable.
       }
@@ -70,18 +79,22 @@ export type RetryResult = {
   failed: number;
   stoppedForBudget: boolean;
   stoppedForTime: boolean;
+  stoppedForAuth: boolean;
 };
 
 /**
  * Sends to up to `limit` pending donors, `concurrency` at a time. Stops starting new sends when a send
- * reports the budget is used up, or when the deadline passes; in-flight sends finish.
+ * reports the budget is used up, when the email login is rejected, or when the deadline passes; in-flight
+ * sends finish.
  */
 export async function runEmailRetry(
   deps: RetryDeps,
   limit: number,
   { concurrency = EMAIL_CONCURRENCY, deadline, now = Date.now }: RetryOptions = {},
 ): Promise<RetryResult> {
-  const result: RetryResult = { attempted: 0, sent: 0, failed: 0, stoppedForBudget: false, stoppedForTime: false };
+  const result: RetryResult = { attempted: 0, sent: 0, failed: 0, stoppedForBudget: false, stoppedForTime: false,
+    stoppedForAuth: false,
+  };
   if (limit <= 0) {
     result.stoppedForBudget = true;
     return result;
@@ -89,7 +102,7 @@ export async function runEmailRetry(
   const ids = (await deps.listCandidates(limit)).slice(0, limit);
   let next = 0;
   const worker = async () => {
-    while (next < ids.length && !result.stoppedForBudget) {
+    while (next < ids.length && !result.stoppedForBudget && !result.stoppedForAuth) {
       if (deadline !== undefined && now() >= deadline) {
         result.stoppedForTime = true;
         return;
@@ -101,6 +114,11 @@ export async function runEmailRetry(
         return;
       }
       result.attempted += 1;
+      if (outcome === "auth_failed") {
+        result.failed += 1;
+        result.stoppedForAuth = true;
+        return;
+      }
       if (outcome === "sent") result.sent += 1;
       else if (outcome === "failed") result.failed += 1;
     }

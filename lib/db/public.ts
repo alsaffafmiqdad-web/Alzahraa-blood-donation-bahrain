@@ -19,7 +19,7 @@ export async function getEvent(): Promise<EventRow> {
     .from("event")
     .select("name_ar, name_en, location_ar, location_en, event_date, event_start_time, public_registration_open")
     .single();
-  if (error || !data) throw new Error(`getEvent failed: ${error?.message ?? "no row"}`);
+  if (error || !data) throw new Error(`getEvent failed: ${error?.message ?? "no row"}`, { cause: error });
   return data as EventRow;
 }
 
@@ -63,7 +63,7 @@ export type SlotAvailability = { id: number; startsAt: string; capacity: number;
 
 export async function getSlotAvailability(): Promise<SlotAvailability[]> {
   const { data, error } = await createSupabaseAdminClient().rpc("slot_availability");
-  if (error) throw new Error(`slot_availability failed: ${error.message}`);
+  if (error) throw new Error(`slot_availability failed: ${error.message}`, { cause: error });
   return ((data ?? []) as { id: number; starts_at: string; capacity: number; booked: number }[]).map((r) => ({
     id: r.id,
     startsAt: r.starts_at,
@@ -117,7 +117,7 @@ export async function registerDonor(input: RegisterDonorInput): Promise<Register
   if (error) {
     const reason = REASONS.find((r) => error.message.includes(r));
     if (reason) return { ok: false, reason };
-    throw new Error(`${fn} failed: ${error.message}`);
+    throw new Error(`${fn} failed: ${error.message}`, { cause: error });
   }
   if (walkIn) {
     const row = (Array.isArray(data) ? data[0] : data) as { donor_id: string; queue_number: number } | undefined;
@@ -145,7 +145,7 @@ export async function findSubmission(submissionId: string): Promise<PriorSubmiss
     .select("id, cpr, slot_id, queue_number, email, email_sent, cpr_image_path")
     .eq("submission_id", submissionId)
     .maybeSingle();
-  if (error) throw new Error(`findSubmission failed: ${error.message}`);
+  if (error) throw new Error(`findSubmission failed: ${error.message}`, { cause: error });
   if (!data) return null;
   const r = data as {
     id: string;

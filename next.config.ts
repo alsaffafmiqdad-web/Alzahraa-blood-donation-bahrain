@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@react-pdf/renderer"],
   outputFileTracingIncludes: {
     "/api/**": ["./assets/fonts/**"],
-    "/admin/**": ["./assets/fonts/**"],
+    "/admin/**": ["./assets/fonts/**", "./assets/certificate/**"],
   },
   experimental: {
     // Two root layouts ([locale] and admin) means no single layout can render a 404.

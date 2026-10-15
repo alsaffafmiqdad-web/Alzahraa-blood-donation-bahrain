@@ -51,7 +51,7 @@ describe("GET /api/cron/daily", () => {
     const res = await get("Bearer s3cret-value");
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.retry).toEqual({ attempted: 2, sent: 2, failed: 0, stoppedForBudget: false, stoppedForTime: false });
+    expect(body.retry).toEqual({ attempted: 2, sent: 2, failed: 0, stoppedForBudget: false, stoppedForTime: false, stoppedForAuth: false });
     expect(m.ping).toHaveBeenCalled();
     expect(m.dailyMaintenance).toHaveBeenCalled();
   });
@@ -59,7 +59,7 @@ describe("GET /api/cron/daily", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     m.ping.mockRejectedValue(new Error("down"));
     await get("Bearer s3cret-value");
-    expect(reportAlert).toHaveBeenCalledWith({ event: "cron_step_failed", code: "ping", detail: "down" });
+    expect(reportAlert).toHaveBeenCalledWith({ event: "cron_step_failed", code: "ping", where: "/api/cron/daily", detail: "down" });
   });
   it("the per-run cap is whatever is left of the rolling budget", async () => {
     m.emailBudgetRemaining.mockResolvedValue(17);
@@ -72,6 +72,20 @@ describe("GET /api/cron/daily", () => {
     expect(m.listRetryCandidates).not.toHaveBeenCalled();
     expect(m.sendDonorEmail).not.toHaveBeenCalled();
     expect(body.retry.stoppedForBudget).toBe(true);
+  });
+  it("stops after an auth failure and reports a summary with auth_stop=true", async () => {
+    m.listRetryCandidates.mockResolvedValue(Array.from({ length: 30 }, (_, i) => `id${i}`));
+    m.sendDonorEmail.mockResolvedValue("auth_failed");
+    const body = await (await get("Bearer s3cret-value")).json();
+    expect(body.retry.stoppedForAuth).toBe(true);
+    expect(body.retry.sent).toBe(0);
+    expect(m.sendDonorEmail.mock.calls.length).toBeLessThan(30);
+    const summary = reportAlert.mock.calls.map((c) => c[0]).find((a) => a.event === "cron_email_summary");
+    expect(summary.detail).toContain("auth_stop=true");
+  });
+  it("a clean run sends no summary", async () => {
+    await get("Bearer s3cret-value");
+    expect(reportAlert).not.toHaveBeenCalledWith(expect.objectContaining({ event: "cron_email_summary" }));
   });
   it("declares the Hobby maximum duration", async () => {
     const route = await import("@/app/api/cron/daily/route");

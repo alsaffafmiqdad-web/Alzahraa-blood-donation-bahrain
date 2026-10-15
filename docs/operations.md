@@ -26,6 +26,30 @@ To remove an admin, delete their row from `public.admins` and then delete the us
 - Online walk-ins and desk check-ins share one queue sequence. The start number can be changed on Admin > Event; numbers never repeat.
 - Desk staff should confirm a walk-in's queue number in the admin list, not from the donor's phone screen.
 
+## Email login failures
+
+How to recognise it: the Discord alert is `email_auth_failed`, with a detail that starts with `smtp EAUTH` (534 or 535). A donor page may also show that as the last email error.
+
+What it means: Google refused the Gmail login itself, so no email can be sent to anyone. Nothing is wrong with the donor or the email. Usual causes: the app password was revoked (changing the Google account password revokes every app password), Google flagged the sign-in and wants it confirmed in a browser, 2-Step Verification was turned off, or `GMAIL_APP_PASSWORD` holds the normal account password.
+
+How to fix it:
+
+1. In a browser, sign in to the drive's Gmail account (the one in `GMAIL_USER`). Complete any prompt Google shows. Under Google Account > Security > Recent security activity, confirm any blocked sign-in as "Yes, it was me".
+2. Check that 2-Step Verification is still on.
+3. Under Google Account > Security > App passwords, delete the old app password for this app and create a new one.
+4. In Vercel > Project > Settings > Environment Variables, replace `GMAIL_APP_PASSWORD` for Production with the new value. Spaces don't matter. Check that `GMAIL_USER` is the same account and that `EMAIL_PROVIDER` is either unset or `gmail`.
+5. Redeploy production (Vercel > Deployments > Redeploy on the latest production deployment). Changed env vars only take effect in a new deployment.
+6. Check the fix: in Admin, open one pending donor and press "Send email". It should say "Email sent".
+7. Send the backlog: in Vercel > Settings > Cron Jobs, run the daily job by hand, or wait for the next scheduled run. It retries pending donors under the attempt cap, oldest first, within the daily budget.
+8. Donors with 5 failed attempts (`EMAIL_MAX_ATTEMPTS`) are skipped by the cron. "Send email" in Admin still works for them, or reset the counter in the Supabase SQL editor and run the cron again:
+   ```sql
+   update public.donors set email_attempts = 0
+    where email is not null and email_sent = false;
+   ```
+9. If Gmail can't be fixed in time, set `EMAIL_PROVIDER=resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (a verified domain is required, see docs/setup.md), then redeploy.
+
+While the login is broken, the daily job stops after the first auth failure (`auth_stop=true` in the summary), so donors aren't used up. Never paste the app password, the Gmail address or any project ID into an issue, a commit, a doc or an alert.
+
 ## Load testing
 
 `pnpm loadtest` runs the real signup path with many users at once (50 by default): the join page, a multipart `POST /api/signup` with a CPR photo, the database function, the Storage upload, the email (production target only) and the donor PDF from `POST /api/card`. It then checks that the data is still correct (one row per CPR, the photo attached, no duplicate or missing queue numbers), reports p50, p95 and p99 latency, throughput, errors by type and email outcomes, prints PASS or FAIL, and removes all of its test data. The rule is a p95 signup latency of 10 seconds or less, and no single signup at 60 seconds or more (the signup route's time limit).

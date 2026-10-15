@@ -33,7 +33,12 @@ describe("runEmailRetry", () => {
       opts,
     ).then((r) => ({ r, sent }));
   };
-  const zero = { attempted: 0, sent: 0, failed: 0, stoppedForBudget: false, stoppedForTime: false };
+  const zero = { attempted: 0, sent: 0, failed: 0, stoppedForBudget: false, stoppedForTime: false, stoppedForAuth: false };
+  it("stops at the first auth failure and starts no more sends", async () => {
+    const { r, sent } = await run(["auth_failed", "sent", "sent"], 10, { concurrency: 1 });
+    expect(sent).toEqual(["id0"]);
+    expect(r).toEqual({ ...zero, attempted: 1, failed: 1, stoppedForAuth: true });
+  });
   it("returns zeros with no candidates", async () => {
     expect((await run([], 10)).r).toEqual(zero);
   });
@@ -171,11 +176,22 @@ describe("sendDonorEmail", () => {
     expect(await sendDonorEmail(donor.id)).toBe("queued");
     expect(db.claimEmailSend).not.toHaveBeenCalled();
   });
-  it("reports email_failed with the donor id and no address", async () => {
+  it("reports email_auth_failed without a donor id on an SMTP auth error", async () => {
     sendConfirmationEmail.mockResolvedValue({ ok: false, error: "smtp EAUTH 535: bad login" });
-    await sendDonorEmail(donor.id);
-    expect(reportAlert).toHaveBeenCalledWith({ event: "email_failed", donorId: donor.id, detail: "smtp EAUTH 535: bad login" });
+    expect(await sendDonorEmail(donor.id)).toBe("auth_failed");
+    expect(reportAlert).toHaveBeenCalledWith({ event: "email_auth_failed", detail: "smtp EAUTH 535: bad login" });
+    expect(db.finishEmailSend).toHaveBeenCalledWith(7, false, "smtp EAUTH 535: bad login");
     expect(JSON.stringify(reportAlert.mock.calls)).not.toContain("@");
+  });
+  it("reports email_failed with the donor id on a non-auth error", async () => {
+    sendConfirmationEmail.mockResolvedValue({ ok: false, error: "smtp ETIMEDOUT: timeout" });
+    expect(await sendDonorEmail(donor.id)).toBe("failed");
+    expect(reportAlert).toHaveBeenCalledWith({
+      event: "email_failed",
+      donorId: donor.id,
+      detail: "smtp ETIMEDOUT: timeout",
+      person: { name: "Ali", email: "ali@example.com", phone: undefined },
+    });
   });
   it("reports email_not_configured when no provider is set", async () => {
     delete process.env.RESEND_API_KEY;

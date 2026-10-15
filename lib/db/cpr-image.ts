@@ -1,6 +1,8 @@
 import "server-only";
 import { reportAlert } from "@/lib/alert";
+import type { AlertPerson } from "@/lib/alert-format";
 import { CPR_IMAGE_BUCKET, CPR_IMAGE_MIME, cprImagePath, type CprImageExt } from "@/lib/cpr-image";
+import { describeError } from "@/lib/describe-error";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -19,13 +21,18 @@ export const CPR_IMAGE_LINK_DEADLINE_MS = 5_000;
 export const CPR_IMAGE_CLEANUP_DEADLINE_MS = 3_000;
 
 /** Stores the CPR card photo and records its path. Best effort: never throws, returns false on any failure or timeout. */
-export async function attachCprImage(donorId: string, bytes: Uint8Array, ext: CprImageExt): Promise<boolean> {
+export async function attachCprImage(
+  donorId: string,
+  bytes: Uint8Array,
+  ext: CprImageExt,
+  person?: AlertPerson,
+): Promise<boolean> {
   try {
     const path = cprImagePath(donorId, ext);
     const up = await createSupabaseAdminClient({ deadlineMs: CPR_IMAGE_DEADLINE_MS }).storage
       .from(CPR_IMAGE_BUCKET)
       .upload(path, bytes, { contentType: CPR_IMAGE_MIME[ext], upsert: false });
-    if (up.error) throw new Error(up.error.message);
+    if (up.error) throw new Error(up.error.message, { cause: up.error });
     const { error } = await createSupabaseAdminClient({ deadlineMs: CPR_IMAGE_LINK_DEADLINE_MS })
       .from("donors").update({ cpr_image_path: path }).eq("id", donorId);
     if (error) {
@@ -33,13 +40,13 @@ export async function attachCprImage(donorId: string, bytes: Uint8Array, ext: Cp
         .storage.from(CPR_IMAGE_BUCKET)
         .remove([path])
         .catch(() => undefined);
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
     return true;
   } catch (e) {
-    const message = e instanceof Error ? e.message : "unknown";
+    const message = describeError(e);
     console.error(`cpr image error donor=${donorId}: ${message}`);
-    reportAlert({ event: "cpr_upload_failed", donorId, detail: message });
+    reportAlert({ event: "cpr_upload_failed", donorId, detail: message, person });
     return false;
   }
 }
